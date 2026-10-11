@@ -1,0 +1,111 @@
+<view class="page">
+
+  <!-- 模型状态 -->
+  <view class="status-bar {{statusLevel}}">
+    <view class="status-dot"></view>
+    <text class="status-text">{{statusText}}</text>
+    <text class="status-retry" bindtap="refreshStatus">刷新</text>
+  </view>
+
+  <!-- 模拟模式提示 -->
+  <view wx:if="{{isMock}}" class="mock-tip">
+    <text>当前后端未加载训练权重，展示的是模拟检测结果。把 best.pt 放到 server/weights/ 后重启服务即为真实识别。</text>
+  </view>
+
+  <!-- 图片区 -->
+  <view class="card">
+    <view class="card-title">
+      <text>{{resultImage ? '检测结果' : '选择图片'}}</text>
+      <text wx:if="{{result}}" class="muted">{{result.image.width}}×{{result.image.height}}</text>
+    </view>
+
+    <view class="image-box" bindtap="previewImage">
+      <image wx:if="{{displayImage}}" class="preview" src="{{displayImage}}" mode="widthFix" />
+      <view wx:else class="empty">
+        <view class="empty-icon">🍎</view>
+        <text class="muted">拍照或从相册选择一张苹果图片</text>
+      </view>
+    </view>
+
+    <view class="action-row">
+      <view class="btn btn-ghost action-btn" bindtap="takePhoto">拍照</view>
+      <view class="btn btn-ghost action-btn" bindtap="chooseFromAlbum">相册</view>
+    </view>
+
+    <view class="action-row">
+      <view class="btn btn-primary action-btn {{canDetect ? '' : 'disabled'}}" bindtap="startDetect">
+        {{detecting ? '检测中…' : '开始检测'}}
+      </view>
+      <view class="btn btn-plain action-btn" bindtap="reset">重置</view>
+    </view>
+  </view>
+
+  <!-- 统计 -->
+  <view wx:if="{{result}}" class="card">
+    <view class="card-title"><text>检测统计</text></view>
+
+    <view class="stat-grid">
+      <view class="stat-cell">
+        <text class="stat-value">{{stats.count}}</text>
+        <text class="stat-label">检测数量</text>
+      </view>
+      <view class="stat-cell">
+        <text class="stat-value">{{confidenceText}}</text>
+        <text class="stat-label">平均置信度</text>
+      </view>
+      <view class="stat-cell">
+        <text class="stat-value">{{stats.inference_ms}}</text>
+        <text class="stat-label">推理耗时(ms)</text>
+      </view>
+      <view class="stat-cell">
+        <text class="stat-value">{{stats.max_confidence}}</text>
+        <text class="stat-label">最高置信度</text>
+      </view>
+    </view>
+
+    <view wx:if="{{result.detections.length === 0}}" class="no-result">未检测到目标，可尝试降低置信度阈值或换一张图片</view>
+  </view>
+
+  <!-- 类别分布 -->
+  <view wx:if="{{byLabel.length}}" class="card">
+    <view class="card-title"><text>类别分布</text></view>
+    <view wx:for="{{byLabel}}" wx:key="label" class="dist-item">
+      <view class="dist-head">
+        <view class="dist-tag" style="background:{{item.color}}"></view>
+        <text class="dist-label">{{item.label}}</text>
+        <text class="dist-count">{{item.count}} 个 · {{item.percent}}%</text>
+      </view>
+      <view class="dist-track">
+        <view class="dist-fill" style="width:{{item.percent}}%;background:{{item.color}}"></view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 检测明细 -->
+  <view wx:if="{{detections.length}}" class="card">
+    <view class="card-title">
+      <text>检测明细</text>
+      <text class="muted">共 {{detections.length}} 条</text>
+    </view>
+    <view wx:for="{{detections}}" wx:key="index" class="det-item">
+      <view class="det-tag" style="background:{{item.color}}"></view>
+      <view class="det-main">
+        <view class="det-line">
+          <text class="det-label">{{item.label}}</text>
+          <text class="det-conf">{{item.confidence}}</text>
+        </view>
+        <text class="muted det-bbox">bbox: {{item.bboxText}}</text>
+      </view>
+      <text class="det-index">#{{item.index}}</text>
+    </view>
+  </view>
+
+  <view class="footer muted">YOLOv5 苹果水果检测识别 · Powered by FastAPI</view>
+</view>
+
+<view wx:if="{{detecting}}" class="mask">
+  <view class="loading-box">
+    <view class="spinner"></view>
+    <text>正在识别…</text>
+  </view>
+</view>

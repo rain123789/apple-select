@@ -1,0 +1,13 @@
+# 微信云托管部署镜像：以下全部为必装（推理镜像需要完整体）
+fastapi>=0.110
+uvicorn[standard]>=0.27
+python-multipart>=0.0.9
+pillow>=10.0
+numpy>=1.24
+
+# YOLOv5 格式权重（COCO 预训练 / 自己训练的 v5 best.pt）
+torch>=2.0
+torchvision>=0.15
+yolov5>=7.0
+# YOLOv8/v11 格式权重（可选，detector 会优先尝试 ultralytics）
+ultralytics>=8.0

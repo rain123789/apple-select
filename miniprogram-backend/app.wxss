@@ -1,0 +1,74 @@
+page {
+  --green: #2e9e5b;
+  --green-light: #eaf6ee;
+  --red: #e74c3c;
+  --ink: #1f2421;
+  --ink-2: #5b655f;
+  --ink-3: #98a29b;
+  --line: #e6eae7;
+  --card: #ffffff;
+  --bg: #f4f6f4;
+
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 28rpx;
+  line-height: 1.5;
+}
+
+.page {
+  padding: 24rpx 24rpx 64rpx;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 24rpx;
+  padding: 28rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 4rpx 20rpx rgba(31, 36, 33, 0.05);
+}
+
+.card-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.muted {
+  color: var(--ink-3);
+  font-size: 24rpx;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 88rpx;
+  border-radius: 16rpx;
+  font-size: 30rpx;
+  font-weight: 500;
+}
+
+.btn-primary {
+  background: var(--green);
+  color: #fff;
+}
+
+.btn-primary.disabled {
+  background: #cfe3d7;
+  color: #fff;
+}
+
+.btn-ghost {
+  background: var(--green-light);
+  color: var(--green);
+}
+
+.btn-plain {
+  background: #fff;
+  color: var(--ink-2);
+  border: 2rpx solid var(--line);
+}

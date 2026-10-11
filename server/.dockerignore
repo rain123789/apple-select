@@ -1,0 +1,13 @@
+# 构建上下文里不需要打进镜像的内容
+__pycache__/
+*.pyc
+.venv/
+venv/
+.git/
+demo/
+scripts/
+static/results/*
+*.md
+.env
+*.log
+.pytest_cache/

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>苹果检测识别 · 本地 Demo</title>
+<style>
+  :root{
+    --green:#2e9e5b; --green-light:#eaf6ee; --red:#e74c3c;
+    --ink:#1f2421; --ink-2:#5b655f; --ink-3:#98a29b;
+    --line:#e6eae7; --card:#fff; --bg:#f4f6f4;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    font-size:14px; line-height:1.5; padding:28px 20px 60px;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  h1{font-size:20px;font-weight:600;margin-bottom:6px}
+  .sub{color:var(--ink-3);font-size:13px;margin-bottom:22px;text-align:center}
+  .phone{
+    width:390px; max-width:100%; background:var(--bg);
+    border:1px solid var(--line); border-radius:28px; padding:16px;
+    box-shadow:0 10px 40px rgba(31,36,33,.10);
+  }
+  .navbar{
+    background:#fff;border-radius:14px;padding:12px;margin-bottom:12px;
+    text-align:center;font-weight:600;font-size:15px;
+  }
+  .status{display:flex;align-items:center;background:#fff;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#c7cdc9;margin-right:10px}
+  .status.ok .dot{background:var(--green)} .status.ok{color:var(--green)}
+  .status.warn .dot{background:#f39c12} .status.warn{color:#b9770e}
+  .status.error .dot{background:var(--red)} .status.error{color:#c0392b}
+  .status span{flex:1} .retry{color:var(--ink-3);cursor:pointer;font-size:12px}
+  .tip{background:#fff8e6;border:1px solid #ffe2a8;color:#8a6414;font-size:12px;
+       padding:10px 12px;border-radius:12px;margin-bottom:12px;line-height:1.6}
+  .card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:12px}
+  .card-title{display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:14px;margin-bottom:12px}
+  .muted{color:var(--ink-3);font-size:12px;font-weight:400}
+  .box{width:100%;min-height:210px;border:2px dashed var(--line);border-radius:14px;
+       background:#f7f9f7;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer}
+  .box img{width:100%;display:block}
+  .empty{text-align:center;padding:44px 0;color:var(--ink-3);font-size:13px}
+  .empty .ico{font-size:44px;display:block;margin-bottom:8px}
+  .row{display:flex;gap:10px;margin-top:12px}
+  .btn{flex:1;height:42px;border-radius:10px;border:none;font-size:14px;cursor:pointer;font-weight:500;
+       display:flex;align-items:center;justify-content:center}
+  .btn-ghost{background:var(--green-light);color:var(--green)}
+  .btn-primary{background:var(--green);color:#fff}
+  .btn-primary[disabled]{background:#cfe3d7;cursor:not-allowed}
+  .btn-plain{background:#fff;color:var(--ink-2);border:1px solid var(--line)}
+  .grid{display:flex;flex-wrap:wrap}
+  .cell{width:50%;padding:8px 0}
+  .cell:nth-child(odd){padding-right:8px} .cell:nth-child(even){padding-left:8px}
+  .val{font-size:24px;font-weight:600;color:var(--green);line-height:1.2}
+  .lab{font-size:12px;color:var(--ink-3);margin-top:2px}
+  .item{margin-bottom:12px} .item:last-child{margin-bottom:0}
+  .head{display:flex;align-items:center;margin-bottom:5px;font-size:13px}
+  .tag{width:10px;height:10px;border-radius:4px;margin-right:8px}
+  .head .name{flex:1;font-weight:500}
+  .head .num{color:var(--ink-3);font-size:12px}
+  .track{height:6px;background:#eef1ee;border-radius:4px;overflow:hidden}
+  .fill{height:100%;border-radius:4px;transition:width .3s}
+  .det{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid #f1f4f1}
+  .det:last-child{border-bottom:none}
+  .bar{width:4px;height:24px;border-radius:4px;margin-right:12px}
+  .det-main{flex:1}
+  .det-line{display:flex;align-items:baseline}
+  .det-line .name{flex:1;font-size:13px;font-weight:500}
+  .det-line .conf{color:var(--green);font-weight:600;font-size:13px}
+  .bbox{font-size:11px;color:var(--ink-3);margin-top:2px}
+  .idx{font-size:12px;color:var(--ink-3);margin-left:12px}
+  .none{background:#f7f9f7;border-radius:10px;padding:12px;font-size:13px;color:var(--ink-2)}
+  .footer{text-align:center;color:var(--ink-3);font-size:12px;margin-top:20px}
+  .mask{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center}
+  .mask.show{display:flex}
+  .loading{background:#fff;border-radius:14px;padding:30px 40px;display:flex;flex-direction:column;align-items:center;font-size:13px;color:var(--ink-2)}
+  .spin{width:34px;height:34px;border:4px solid #e6eae7;border-top-color:var(--green);border-radius:50%;
+        margin-bottom:14px;animation:s .9s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  input[type=file]{display:none}
+</style>
+</head>
+<body>
+
+<h1>苹果检测识别 · 本地 Demo</h1>
+<p class="sub">与微信小程序共用同一套后端接口（<code>/api/detect</code>），界面按小程序 1:1 还原<br>后端地址：<span id="base"></span></p>
+
+<div class="phone">
+  <div class="navbar">苹果检测识别</div>
+
+  <div class="status" id="status">
+    <i class="dot"></i><span id="statusText">正在连接后端…</span><b class="retry" onclick="health()">刷新</b>
+  </div>
+
+  <div id="mockTip" class="tip" style="display:none">
+    当前后端未加载训练权重，展示的是模拟检测结果。把 best.pt 放到 server/weights/ 后重启服务即为真实识别。
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span id="imgTitle">选择图片</span><span class="muted" id="imgSize"></span></div>
+    <div class="box" id="box" onclick="pick()">
+      <div class="empty" id="empty"><i class="ico">🍎</i>点击选择一张苹果图片</div>
+      <img id="preview" style="display:none" alt="预览" />
+    </div>
+    <div class="row">
+      <button class="btn btn-ghost" onclick="pick()">选择图片</button>
+      <button class="btn btn-plain" onclick="reset()">重置</button>
+    </div>
+    <div class="row">
+      <button class="btn btn-primary" id="detectBtn" disabled onclick="run()">开始检测</button>
+    </div>
+  </div>
+
+  <div class="card" id="statCard" style="display:none">
+    <div class="card-title">检测统计</div>
+    <div class="grid">
+      <div class="cell"><div class="val" id="s1">0</div><div class="lab">检测数量</div></div>
+      <div class="cell"><div class="val" id="s2">--</div><div class="lab">平均置信度</div></div>
+      <div class="cell"><div class="val" id="s3">0</div><div class="lab">推理耗时(ms)</div></div>
+      <div class="cell"><div class="val" id="s4">0</div><div class="lab">最高置信度</div></div>
+    </div>
+    <div id="noneTip" class="none" style="display:none;margin-top:8px">未检测到目标</div>
+  </div>
+
+  <div class="card" id="distCard" style="display:none">
+    <div class="card-title">类别分布</div>
+    <div id="dist"></div>
+  </div>
+
+  <div class="card" id="detCard" style="display:none">
+    <div class="card-title">检测明细<span class="muted" id="detCount"></span></div>
+    <div id="dets"></div>
+  </div>
+
+  <div class="footer">YOLOv5 苹果水果检测识别 · Powered by FastAPI</div>
+</div>
+
+<input type="file" id="file" accept="image/*" />
+<div class="mask" id="mask"><div class="loading"><div class="spin"></div>正在识别…</div></div>
+
+<script>
+const BASE = location.origin
+const PALETTE = ['#e74c3c','#27ae60','#2980b9','#f39c12','#8e44ad','#1abc9c','#d35400','#34495e']
+let classes = ['apple'], file = null
+
+document.getElementById('base').textContent = BASE
+
+function color(label){ const i = classes.indexOf(label); return PALETTE[(i<0?0:i)%PALETTE.length] }
+
+function health(){
+  const el = document.getElementById('status')
+  el.className = 'status'; document.getElementById('statusText').textContent = '正在连接后端…'
+  fetch(BASE + '/api/health')
+    .then(r => r.json())
+    .then(d => {
+      classes = (d.classes && d.classes.length) ? d.classes : ['apple']
+      const map = {real:'模型已加载 · 真实推理', torchhub:'模型已加载 · torch.hub 推理', mock:'未加载权重 · 模拟推理'}
+      el.className = 'status ' + (d.mode === 'mock' ? 'warn' : 'ok')
+      document.getElementById('statusText').textContent = map[d.mode] || '后端已连接'
+      document.getElementById('mockTip').style.display = d.mode === 'mock' ? 'block' : 'none'
+    })
+    .catch(() => {
+      el.className = 'status error'
+      document.getElementById('statusText').textContent = '后端未连接，请检查服务是否已启动'
+    })
+}
+
+function pick(){ document.getElementById('file').click() }
+
+document.getElementById('file').addEventListener('change', e => {
+  const f = e.target.files[0]
+  if (!f) return
+  file = f
+  const url = URL.createObjectURL(f)
+  const img = document.getElementById('preview')
+  img.src = url; img.style.display = 'block'
+  document.getElementById('empty').style.display = 'none'
+  document.getElementById('imgTitle').textContent = '待检测图片'
+  document.getElementById('imgSize').textContent = ''
+  document.getElementById('detectBtn').disabled = false
+  hide(['statCard','distCard','detCard'])
+})
+
+function hide(ids){ ids.forEach(i => document.getElementById(i).style.display = 'none') }
+
+function reset(){
+  file = null
+  document.getElementById('file').value = ''
+  document.getElementById('preview').style.display = 'none'
+  document.getElementById('empty').style.display = 'block'
+  document.getElementById('imgTitle').textContent = '选择图片'
+  document.getElementById('imgSize').textContent = ''
+  document.getElementById('detectBtn').disabled = true
+  hide(['statCard','distCard','detCard'])
+}
+
+function run(){
+  if (!file) return
+  const btn = document.getElementById('detectBtn')
+  btn.disabled = true; btn.textContent = '检测中…'
+  document.getElementById('mask').classList.add('show')
+
+  const fd = new FormData(); fd.append('file', file)
+  fetch(BASE + '/api/detect', { method: 'POST', body: fd })
+    .then(r => { if (!r.ok) throw new Error('检测失败 HTTP ' + r.status); return r.json() })
+    .then(d => render(d))
+    .catch(err => alert(err.message))
+    .finally(() => {
+      btn.disabled = false; btn.textContent = '开始检测'
+      document.getElementById('mask').classList.remove('show')
+    })
+}
+
+function render(d){
+  const total = d.stats.count
+  const img = document.getElementById('preview')
+  img.src = BASE + d.annotated_url + '?t=' + Date.now()
+  img.style.display = 'block'
+  document.getElementById('empty').style.display = 'none'
+  document.getElementById('imgTitle').textContent = '检测结果'
+  document.getElementById('imgSize').textContent = d.image.width + '×' + d.image.height
+
+  document.getElementById('statCard').style.display = 'block'
+  document.getElementById('s1').textContent = total
+  document.getElementById('s2').textContent = (d.stats.avg_confidence * 100).toFixed(1) + '%'
+  document.getElementById('s3').textContent = d.stats.inference_ms
+  document.getElementById('s4').textContent = d.stats.max_confidence
+  document.getElementById('noneTip').style.display = total ? 'none' : 'block'
+
+  const dist = document.getElementById('dist')
+  dist.innerHTML = (d.stats.by_label || []).map(i => {
+    const pct = total ? Math.round(i.count / total * 100) : 0
+    return `<div class="item"><div class="head"><i class="tag" style="background:${color(i.label)}"></i>
+      <span class="name">${i.label}</span><span class="num">${i.count} 个 · ${pct}%</span></div>
+      <div class="track"><div class="fill" style="width:${pct}%;background:${color(i.label)}"></div></div></div>`
+  }).join('')
+  document.getElementById('distCard').style.display = (d.stats.by_label || []).length ? 'block' : 'none'
+
+  const dets = document.getElementById('dets')
+  dets.innerHTML = (d.detections || []).map((x, i) =>
+    `<div class="det"><i class="bar" style="background:${color(x.label)}"></i>
+      <div class="det-main"><div class="det-line"><span class="name">${x.label}</span>
+      <span class="conf">${x.confidence.toFixed(2)}</span></div>
+      <div class="bbox">bbox: ${x.bbox.map(v => Math.round(v)).join(', ')} · 置信度 ${(x.confidence*100).toFixed(1)}%</div></div>
+      <span class="idx">#${i+1}</span></div>`
+  ).join('')
+  document.getElementById('detCount').textContent = '共 ' + (d.detections || []).length + ' 条'
+  document.getElementById('detCard').style.display = (d.detections || []).length ? 'block' : 'none'
+}
+
+health()
+</script>
+</body>
+</html>

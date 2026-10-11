@@ -1,0 +1,2 @@
+<!-- 纯前端小程序：整个页面就是一个 web-view，打开 52byte 上的 H5 检测页 -->
+<web-view src="{{url}}"></web-view>

@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>苹果检测识别 · AI 视觉网站（纯前端）</title>
+<!-- 浏览器端推理引擎：ONNX Runtime Web（WASM），已自托管到同目录 onnxruntime-web/，不依赖任何外网 CDN（国内微信 web-view 也能稳定加载） -->
+<script src="./onnxruntime-web/ort.min.js"></script>
+<style>
+  :root{
+    --green:#2e9e5b; --green-d:#24924f; --green-l:#eaf6ee; --green-xl:#f3faf5;
+    --red:#e74c3c; --amber:#f39c12; --amber-l:#fff7e6; --amber-b:#ffe2a8;
+    --ink:#1b231f; --ink-2:#5b655f; --ink-3:#98a29b;
+    --line:#e7ebe8; --card:#fff; --bg:#f4f7f4;
+    --radius:18px; --shadow:0 6px 24px rgba(31,36,33,.07);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:linear-gradient(180deg,#f3faf5 0%,var(--bg) 220px);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
+    font-size:14px; line-height:1.55; min-height:100%;
+  }
+  .wrap{max-width:1040px;margin:0 auto;padding:28px 18px 64px}
+
+  header.brand{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+  .logo{width:48px;height:48px;border-radius:14px;flex:none;background:linear-gradient(135deg,var(--green),var(--green-d));
+    display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 4px 14px rgba(46,158,91,.35)}
+  .brand h1{font-size:21px;font-weight:700;letter-spacing:.2px}
+  .brand p{color:var(--ink-3);font-size:13px;margin-top:1px}
+  .status{display:flex;align-items:center;gap:9px;margin:16px 0 22px;background:var(--card);border:1px solid var(--line);
+    border-radius:999px;padding:9px 16px;font-size:13px;width:fit-content;box-shadow:var(--shadow)}
+  .status .dot{width:9px;height:9px;border-radius:50%;background:#c7cdc9;flex:none;transition:background .3s}
+  .status.ok .dot{background:var(--green);box-shadow:0 0 0 4px var(--green-l)}
+  .status.warn .dot{background:var(--amber)}
+  .status.error .dot{background:var(--red)}
+  .status span{flex:1}
+  .status .retry{color:var(--ink-3);cursor:pointer;font-size:12px;border:0;background:none;padding:4px 6px;border-radius:8px}
+  .status .retry:hover{background:var(--green-l);color:var(--green)}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+  @media (max-width:840px){ .grid{grid-template-columns:1fr} }
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+  .card h2{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:14px}
+  .card h2 .ic{font-size:17px}
+  .muted{color:var(--ink-3);font-size:12px;font-weight:400}
+
+  .drop{border:2px dashed #cfe0d4;border-radius:16px;background:var(--green-xl);min-height:240px;display:flex;
+    flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;cursor:pointer;transition:.18s;position:relative;overflow:hidden}
+  .drop:hover{border-color:var(--green);background:#fff}
+  .drop.over{border-color:var(--green);background:var(--green-l);transform:scale(1.005)}
+  .drop img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff}
+  .drop .ph{display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
+  .drop .ph .ico{font-size:46px}
+  .drop .ph .t{font-weight:600;color:var(--ink-2);font-size:15px}
+  .drop .ph .s{color:var(--ink-3);font-size:12.5px;line-height:1.7}
+  .drop.hide-ph .ph{display:none}
+
+  .btns{display:flex;gap:10px;margin-top:14px}
+  .btn{flex:1;height:46px;border-radius:12px;border:0;font-size:14.5px;font-weight:600;cursor:pointer;display:flex;
+    align-items:center;justify-content:center;gap:7px;transition:.15s}
+  .btn-primary{background:var(--green);color:#fff;box-shadow:0 4px 14px rgba(46,158,91,.3)}
+  .btn-primary:hover{background:var(--green-d)}
+  .btn-primary[disabled]{background:#bfd8c8;box-shadow:none;cursor:not-allowed}
+  .btn-ghost{background:var(--green-l);color:var(--green)}
+  .btn-ghost:hover{background:#dcefe2}
+  .cam-only{display:none}
+  @media (hover:none) and (pointer:coarse){ .cam-only{display:inline-flex} }
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+  @media (max-width:480px){ .stats{grid-template-columns:repeat(2,1fr)} }
+  .stat{background:var(--green-xl);border-radius:14px;padding:13px 10px;text-align:center}
+  .stat .v{font-size:23px;font-weight:700;color:var(--green);line-height:1.15}
+  .stat .l{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+
+  .res-img{width:100%;border-radius:14px;border:1px solid var(--line);background:#f7f9f7;display:block}
+  .res-empty{color:var(--ink-3);font-size:13px;text-align:center;padding:34px 0}
+
+  .bar-row{display:flex;align-items:center;gap:10px;margin:9px 0}
+  .bar-row .tag{width:10px;height:10px;border-radius:3px;flex:none}
+  .bar-row .nm{flex:1;font-size:13px;font-weight:500}
+  .bar-row .ct{font-size:12px;color:var(--ink-3)}
+  .track{height:7px;background:#eef1ee;border-radius:5px;overflow:hidden;flex:0 0 38%}
+  .track .fill{height:100%;border-radius:5px;transition:width .4s}
+
+  .det{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid #f1f4f1}
+  .det:last-child{border-bottom:0}
+  .det .b{width:4px;align-self:stretch;min-height:30px;border-radius:3px;flex:none}
+  .det .main{flex:1;min-width:0}
+  .det .ln{display:flex;align-items:baseline;gap:8px}
+  .det .nm{font-size:13.5px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .det .cf{color:var(--green);font-weight:700;font-size:13px}
+  .det .bbox{font-size:11px;color:var(--ink-3);margin-top:2px}
+  .det .idx{font-size:12px;color:var(--ink-3)}
+
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:3px 9px;border-radius:999px;background:var(--green-l);color:var(--green);margin-left:8px}
+  .tip{background:var(--amber-l);border:1px solid var(--amber-b);color:#8a6414;font-size:12.5px;padding:11px 13px;
+    border-radius:12px;margin-bottom:18px;line-height:1.65;display:none}
+  .tip.show{display:block}
+  .tip code{background:#fff;border:1px solid var(--amber-b);padding:1px 6px;border-radius:5px}
+  .section{margin-top:18px}
+  .none{background:var(--green-xl);border-radius:12px;padding:13px;font-size:13px;color:var(--ink-2);text-align:center}
+  .mask{position:fixed;inset:0;background:rgba(20,30,25,.4);display:none;align-items:center;justify-content:center;z-index:50}
+  .mask.show{display:flex}
+  .load{background:#fff;border-radius:16px;padding:28px 38px;display:flex;flex-direction:column;align-items:center;gap:14px;font-size:13.5px;color:var(--ink-2);max-width:86vw}
+  .spin{width:36px;height:36px;border:4px solid #e6eae7;border-top-color:var(--green);border-radius:50%;animation:r .9s linear infinite}
+  @keyframes r{to{transform:rotate(360deg)}}
+  footer{text-align:center;color:var(--ink-3);font-size:12px;margin-top:34px;line-height:1.7}
+  footer code{background:#eef1ee;padding:1px 6px;border-radius:5px;color:var(--ink-2)}
+  input[type=file]{display:none}
+  .toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(20px);background:#1b231f;color:#fff;
+    padding:11px 18px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:60;max-width:88vw}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="brand">
+    <div class="logo">🍎</div>
+    <div>
+      <h1>苹果检测识别</h1>
+      <p>YOLOv5 实时视觉 · 全部在浏览器本地推理，图片不上传任何服务器</p>
+    </div>
+  </header>
+
+  <div class="status" id="status">
+    <i class="dot"></i><span id="statusText">正在加载模型…</span>
+    <button class="retry" id="retryBtn" style="display:none" onclick="location.reload()">重试</button>
+  </div>
+
+  <div class="tip" id="mockTip">
+    当前为 COCO 预训练 YOLOv5（官方权重，含 apple 第 47 类）：可识别苹果、人、瓶子等 80 类。
+    想只识别苹果，请用你自己的 <code>best.pt</code> 重新导出 ONNX 替换本地模型文件。
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2><span class="ic">📷</span>上传图片<span class="muted" id="imgMeta"></span></h2>
+      <div class="drop" id="drop" onclick="pick()">
+        <img id="srcImg" style="display:none" alt="原图" />
+        <div class="ph">
+          <span class="ico">🍏</span>
+          <span class="t">点击 / 拖拽图片到这里</span>
+          <span class="s">支持 JPG · PNG · WEBP · BMP<br>手机可点击下方「拍照」直接识别</span>
+        </div>
+      </div>
+      <div class="btns">
+        <button class="btn btn-ghost cam-only" onclick="capture()">📸 拍照</button>
+        <button class="btn btn-ghost" onclick="pick()">选择图片</button>
+        <button class="btn btn-ghost" onclick="reset()">重置</button>
+      </div>
+      <div class="btns">
+        <button class="btn btn-primary" id="detectBtn" disabled onclick="run()">开始检测</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="ic">🔍</span>检测结果<span id="modePill"></span></h2>
+      <div id="beforeBlock">
+        <div class="res-empty">模型加载完成后，上传一张苹果照片，点击「开始检测」查看识别结果。</div>
+      </div>
+      <div id="afterBlock" style="display:none">
+        <div class="stats">
+          <div class="stat"><div class="v" id="s1">0</div><div class="l">检测数量</div></div>
+          <div class="stat"><div class="v" id="s2">--</div><div class="l">平均置信度</div></div>
+          <div class="stat"><div class="v" id="s3">0</div><div class="l">推理耗时(ms)</div></div>
+          <div class="stat"><div class="v" id="s4">0</div><div class="l">最高置信度</div></div>
+        </div>
+        <canvas class="res-img" id="resCanvas" style="display:none"></canvas>
+        <div class="section" id="distSec" style="display:none">
+          <h2 style="font-size:14px"><span class="ic">📊</span>类别分布</h2>
+          <div id="dist"></div>
+        </div>
+        <div class="section" id="detSec" style="display:none">
+          <h2 style="font-size:14px"><span class="ic">📋</span>检测明细<span class="muted" id="detCount"></span></h2>
+          <div id="dets"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    苹果检测识别 · 纯前端实现（ONNX Runtime Web + YOLOv5）· 推理在你的浏览器本地完成，图片不会离开设备<br>
+    后端不是必需的——这就是一个静态网页，可直接托管到任意静态空间
+  </footer>
+</div>
+
+<input type="file" id="file" accept="image/*" />
+<input type="file" id="cam" accept="image/*" capture="environment" />
+<div class="mask" id="mask"><div class="load"><div class="spin"></div><span id="maskText">正在识别…</span></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ======================================================================
+ * ⚙️ 模型配置（上线前可改这一处）
+ * --------------------------------------------------------------------
+ * 默认加载与本页同目录的 yolov5s.onnx（COCO 预训练，含 apple 第 47 类）。
+ * 若你只能往 52byte.com 上传一个 index.html，把 MODEL_URL 改成官方 CDN：
+ *   const MODEL_URL = "https://github.com/ultralytics/yolov5/releases/download/v7.0/yolov5s.onnx"
+ * 页面会自动先尝试本地 ./yolov5s.onnx，失败再回退到上面的官方地址。
+ * ==================================================================== */
+const MODEL_URL = "./yolov5s.onnx"
+const FALLBACK_MODEL_URL = "https://github.com/ultralytics/yolov5/releases/download/v7.0/yolov5s.onnx"
+
+const SIZE = 640
+const CONF = 0.20          // 置信度阈值
+const IOU = 0.45           // NMS IoU 阈值
+const PALETTE = ['#e74c3c','#27ae60','#2980b9','#f39c12','#8e44ad','#1abc9c','#d35400','#34495e','#c0392b','#16a085']
+
+// COCO 80 类（apple = 索引 47）
+const COCO = ["person","bicycle","car","motorcycle","airplane","bus","train","truck","boat","traffic light",
+"fire hydrant","stop sign","parking meter","bench","bird","cat","dog","horse","sheep","cow",
+"elephant","bear","zebra","giraffe","backpack","umbrella","handbag","tie","suitcase","frisbee",
+"skis","snowboard","sports ball","kite","baseball bat","baseball glove","skateboard","surfboard","tennis racket","bottle",
+"wine glass","cup","fork","knife","spoon","bowl","banana","apple","sandwich","orange",
+"broccoli","carrot","hot dog","pizza","donut","cake","chair","couch","potted plant","bed",
+"dining table","toilet","tv","laptop","mouse","remote","keyboard","cell phone","microwave","oven",
+"toaster","sink","refrigerator","book","clock","vase","scissors","teddy bear","hair drier","toothbrush"]
+
+let session = null, file = null, srcImage = null
+
+function $(id){ return document.getElementById(id) }
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2800) }
+function color(label){ const i=COCO.indexOf(label); return PALETTE[(i<0?0:i)%PALETTE.length] }
+function setStatus(cls,text){ const el=$('status'); el.className='status '+(cls||''); $('statusText').textContent=text }
+
+// 加载模型（浏览器本地；失败回退官方 CDN）
+async function loadModel(){
+  if(typeof ort==='undefined'){ setStatus('error','推理引擎(ort)加载失败，请检查网络'); $('retryBtn').style.display='inline'; return }
+  // 推理引擎(ort.min.js)与 wasm 文件同目录。用脚本自身所在目录的绝对 URL 作为
+  // wasmPaths，避免相对路径被引擎二次拼接成 onnxruntime-web/onnxruntime-web 重复目录
+  const _ortScript = document.querySelector('script[src*="ort.min.js"]')
+  ort.env.wasm.wasmPaths = _ortScript ? new URL('./', _ortScript.src).href : './'
+  // 微信 web-view 通常不提供 SharedArrayBuffer（缺 COOP/COEP 头），强制单线程最稳
+  ort.env.wasm.numThreads = 1
+  setStatus('', '正在加载模型…（约 28MB，首次稍慢）')
+  try {
+    session = await ort.InferenceSession.create(MODEL_URL, { executionProviders:['wasm'], graphOptimizationLevel:'all' })
+    onModelReady()
+  } catch (e1) {
+    if (MODEL_URL !== FALLBACK_MODEL_URL) {
+      try {
+        setStatus('', '本地模型缺失，正在加载官方 CDN 模型…')
+        session = await ort.InferenceSession.create(FALLBACK_MODEL_URL, { executionProviders:['wasm'], graphOptimizationLevel:'all' })
+        onModelReady()
+        return
+      } catch (e2) { /* 落到下方错误 */ }
+    }
+    console.error(e1); setStatus('error','模型加载失败：' + (e1.message||e1)); $('retryBtn').style.display='inline'
+  }
+}
+function onModelReady(){
+  setStatus('ok', '模型已加载 · 浏览器本地推理')
+  $('mockTip').classList.add('show')
+  if (file) $('detectBtn').disabled = false
+}
+
+function pick(){ $('file').click() }
+function capture(){ $('cam').click() }
+function onFile(f){
+  if(!f) return
+  if(!f.type.startsWith('image/')){ toast('请选择图片文件'); return }
+  file=f
+  const url=URL.createObjectURL(f)
+  const img=$('srcImg'); img.src=url; img.style.display='block'
+  $('drop').classList.add('hide-ph'); $('imgMeta').textContent=''
+  $('detectBtn').disabled = !session
+  $('beforeBlock').style.display='none'; $('afterBlock').style.display='none'
+  const im=new Image(); im.onload=()=>{ srcImage=im }; im.src=url
+}
+$('file').addEventListener('change',e=>onFile(e.target.files[0]))
+$('cam').addEventListener('change',e=>onFile(e.target.files[0]))
+const drop=$('drop')
+;['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over')}))
+;['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over')}))
+drop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) onFile(f) })
+
+function reset(){
+  file=null; srcImage=null; $('file').value=''; $('cam').value=''
+  $('srcImg').style.display='none'; $('drop').classList.remove('hide-ph')
+  $('imgMeta').textContent=''; $('detectBtn').disabled=true
+  $('beforeBlock').style.display='block'; $('afterBlock').style.display='none'
+}
+
+// 预处理：letterbox 缩放到 640，归一化，RGB 排到 CHW
+function preprocess(img){
+  const w=img.naturalWidth, h=img.naturalHeight
+  const r=Math.min(SIZE/w, SIZE/h)
+  const nw=Math.round(w*r), nh=Math.round(h*r)
+  const c=document.createElement('canvas'); c.width=SIZE; c.height=SIZE
+  const ctx=c.getContext('2d')
+  ctx.fillStyle='#727272'; ctx.fillRect(0,0,SIZE,SIZE)
+  ctx.drawImage(img,(SIZE-nw)/2,(SIZE-nh)/2,nw,nh)
+  const d=ctx.getImageData(0,0,SIZE,SIZE).data
+  const f=new Float32Array(3*SIZE*SIZE)
+  for(let i=0;i<SIZE*SIZE;i++){ f[i]=d[i*4]/255; f[SIZE*SIZE+i]=d[i*4+1]/255; f[2*SIZE*SIZE+i]=d[i*4+2]/255 }
+  return { input:f, meta:{w,h,nw,nh,r} }
+}
+
+function iou(a,b){
+  const xx=Math.max(a[0],b[0]), yy=Math.max(a[1],b[1]), xx2=Math.min(a[2],b[2]), yy2=Math.min(a[3],b[3])
+  const iw=Math.max(0,xx2-xx), ih=Math.max(0,yy2-yy), inter=iw*ih
+  const A=(a[2]-a[0])*(a[3]-a[1])+(b[2]-b[0])*(b[3]-b[1])-inter
+  return inter/A
+}
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)) }
+
+// 解码 + NMS（与 Python 端 onnxruntime 验证一致）
+function decode(data, rows, meta){
+  const padX=(SIZE-meta.nw)/2, padY=(SIZE-meta.nh)/2
+  const raw=[]
+  for(let i=0;i<rows;i++){
+    const b=i*85
+    let maxc=0, maxv=-1
+    for(let c=0;c<80;c++){ const v=data[b+5+c]; if(v>maxv){maxv=v;maxc=c} }
+    const score=data[b+4]*maxv
+    if(score<CONF) continue
+    let x1=data[b]-data[b+2]/2, y1=data[b+1]-data[b+3]/2
+    let x2=data[b]+data[b+2]/2, y2=data[b+1]+data[b+3]/2
+    x1=(x1-padX)/meta.r; y1=(y1-padY)/meta.r; x2=(x2-padX)/meta.r; y2=(y2-padY)/meta.r
+    raw.push({ cls:maxc, label:COCO[maxc], conf:score,
+      bbox:[clamp(x1,0,meta.w),clamp(y1,0,meta.h),clamp(x2,0,meta.w),clamp(y2,0,meta.h)] })
+  }
+  const byCls={}
+  raw.forEach(d=>{ (byCls[d.cls]=byCls[d.cls]||[]).push(d) })
+  const out=[]
+  Object.keys(byCls).forEach(k=>{
+    let g=byCls[k].sort((a,b)=>b.conf-a.conf)
+    while(g.length){
+      const best=g.shift(); out.push(best)
+      g=g.filter(d=>iou(best.bbox,d.bbox)<=IOU)
+    }
+  })
+  return out.sort((a,b)=>b.conf-a.conf)
+}
+
+async function run(){
+  if(!file || !session) return
+  const btn=$('detectBtn'); btn.disabled=true; btn.textContent='检测中…'
+  $('mask').classList.add('show')
+  try {
+    const {input, meta}=preprocess(srcImage)
+    const t0=performance.now()
+    const res=await session.run({ images:new ort.Tensor('float32', input, [1,3,SIZE,SIZE]) })
+    const ms=performance.now()-t0
+    const out=res['output']
+    const dets=decode(out.data, out.dims[1], meta)
+    render(dets, ms)
+  } catch(e){
+    console.error(e); toast('推理失败：'+(e.message||e))
+  } finally {
+    btn.disabled=false; btn.textContent='开始检测'; $('mask').classList.remove('show')
+  }
+}
+
+function render(dets, ms){
+  $('beforeBlock').style.display='none'; $('afterBlock').style.display='block'
+  const total=dets.length
+  // 标注图
+  const cv=$('resCanvas'); const w=srcImage.naturalWidth, h=srcImage.naturalHeight
+  cv.width=w; cv.height=h
+  const ctx=cv.getContext('2d')
+  ctx.drawImage(srcImage,0,0,w,h)
+  dets.forEach((d,i)=>{
+    const col=color(d.label)
+    ctx.strokeStyle=col; ctx.lineWidth=Math.max(2, Math.round(w/240))
+    ctx.strokeRect(d.bbox[0],d.bbox[1],d.bbox[2]-d.bbox[0],d.bbox[3]-d.bbox[1])
+    const text=d.label+' '+(d.conf*100).toFixed(0)+'%'
+    ctx.font='600 '+Math.max(13,Math.round(w/40))+'px sans-serif'
+    const tw=ctx.measureText(text).width
+    ctx.fillStyle=col; ctx.fillRect(d.bbox[0], Math.max(0,d.bbox[1]-Math.round(w/32)), tw+10, Math.round(w/26))
+    ctx.fillStyle='#fff'; ctx.fillText(text, d.bbox[0]+5, Math.max(0,d.bbox[1]-Math.round(w/64)))
+  })
+  cv.style.display='block'
+
+  const maxConf = total?Math.max(...dets.map(d=>d.conf)):0
+  const avg = total?dets.reduce((s,d)=>s+d.conf,0)/total:0
+  $('s1').textContent=total
+  $('s2').textContent=total?(avg*100).toFixed(1)+'%':'--'
+  $('s3').textContent=Math.round(ms)
+  $('s4').textContent=total?maxConf.toFixed(2):'0'
+  $('modePill').innerHTML='<span class="pill">本地推理</span>'
+
+  const byLabel={}
+  dets.forEach(d=>{ byLabel[d.label]=(byLabel[d.label]||0)+1 })
+  const dist=$('dist'); const dl=Object.entries(byLabel).sort((a,b)=>b[1]-a[1])
+  dist.innerHTML=dl.map(([lab,ct])=>{
+    const pct=total?Math.round(ct/total*100):0
+    return `<div class="bar-row"><i class="tag" style="background:${color(lab)}"></i>
+      <span class="nm">${lab}</span><span class="ct">${ct} · ${pct}%</span>
+      <div class="track"><div class="fill" style="width:${pct}%;background:${color(lab)}"></div></div></div>`
+  }).join('')
+  $('distSec').style.display=dl.length?'block':'none'
+
+  const detsEl=$('dets')
+  if(!total){ detsEl.innerHTML='<div class="none">未检测到目标，可尝试更清晰的图片或调低阈值</div>' }
+  else {
+    detsEl.innerHTML=dets.map((x,i)=>`<div class="det"><i class="b" style="background:${color(x.label)}"></i>
+      <div class="main"><div class="ln"><span class="nm">${x.label}</span><span class="cf">${(x.conf*100).toFixed(1)}%</span></div>
+      <div class="bbox">bbox: [${x.bbox.map(v=>Math.round(v)).join(', ')}]</div></div>
+      <span class="idx">#${i+1}</span></div>`).join('')
+  }
+  $('detCount').textContent='共 '+dets.length+' 条'
+  $('detSec').style.display='block'
+}
+
+loadModel()
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 模型权重不入库（体积大），请单独传输
+server/weights/*.pt
+
+# 运行产物
+server/static/results/
+server/.env
+
+# 测试产物
+test_apple.jpg
+
+# IDE / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 部署产物（可由源文件重新生成，避免仓库冗余）
+frontend-only-完整部署包.zip
+miniprogram-纯前端web-view.zip

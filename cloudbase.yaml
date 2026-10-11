@@ -1,0 +1,27 @@
+# 微信云托管（CloudBase Run）服务声明文件
+# 用法：在「微信开发者工具 → 云开发 → 云托管 → 新建服务」时，选择「绑定代码仓库 / 本地代码」，
+# 平台会读取本文件与 server/Dockerfile 自动构建。也可在云托管服务详情页手动指定：
+#   - 服务来源目录：server/
+#   - Dockerfile：server/Dockerfile
+#   - 监听端口：8000
+#   - 健康检查路径：/api/health
+#
+# 注意：下面 envId 需替换成你自己的云开发环境 ID。
+envId: 'your-cloud-env-id'
+
+cloudrun:
+  - name: apple-detection
+    path: ./server            # 含 Dockerfile 与源码的目录
+    dockerfile: Dockerfile
+    port: 8000
+    # 最小副本设为 1 可避免冷启动（PyTorch 加载较重，冷启动可能 20~40s）
+    minReplicas: 1
+    maxReplicas: 4
+    cpu: 1
+    mem: 2
+    # 健康检查（云托管会在实例就绪前持续探测）
+    readinessProbe:
+      path: /api/health
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    # 云托管自动注入 PORT 环境变量，uvicorn 已读取

@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>苹果检测识别 · AI 视觉网站</title>
+<style>
+  :root{
+    --green:#2e9e5b; --green-d:#24924f; --green-l:#eaf6ee; --green-xl:#f3faf5;
+    --red:#e74c3c; --amber:#f39c12; --amber-l:#fff7e6; --amber-b:#ffe2a8;
+    --ink:#1b231f; --ink-2:#5b655f; --ink-3:#98a29b;
+    --line:#e7ebe8; --card:#fff; --bg:#f4f7f4;
+    --radius:18px; --shadow:0 6px 24px rgba(31,36,33,.07);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:linear-gradient(180deg,#f3faf5 0%,var(--bg) 220px);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
+    font-size:14px; line-height:1.55;
+    min-height:100%;
+  }
+  .wrap{max-width:1040px;margin:0 auto;padding:28px 18px 64px}
+
+  /* 头部 */
+  header.brand{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+  .logo{
+    width:48px;height:48px;border-radius:14px;flex:none;
+    background:linear-gradient(135deg,var(--green),var(--green-d));
+    display:flex;align-items:center;justify-content:center;font-size:26px;
+    box-shadow:0 4px 14px rgba(46,158,91,.35);
+  }
+  .brand h1{font-size:21px;font-weight:700;letter-spacing:.2px}
+  .brand p{color:var(--ink-3);font-size:13px;margin-top:1px}
+  .status{
+    display:flex;align-items:center;gap:9px;margin:16px 0 22px;
+    background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:9px 16px;font-size:13px;width:fit-content;box-shadow:var(--shadow)
+  }
+  .status .dot{width:9px;height:9px;border-radius:50%;background:#c7cdc9;flex:none;transition:background .3s}
+  .status.ok .dot{background:var(--green);box-shadow:0 0 0 4px var(--green-l)}
+  .status.warn .dot{background:var(--amber)}
+  .status.error .dot{background:var(--red)}
+  .status span{flex:1}
+  .status .retry{color:var(--ink-3);cursor:pointer;font-size:12px;border:0;background:none;padding:4px 6px;border-radius:8px}
+  .status .retry:hover{background:var(--green-l);color:var(--green)}
+
+  /* 布局 */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+  @media (max-width:840px){ .grid{grid-template-columns:1fr} }
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+  .card h2{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:14px}
+  .card h2 .ic{font-size:17px}
+  .muted{color:var(--ink-3);font-size:12px;font-weight:400}
+
+  /* 上传区 */
+  .drop{
+    border:2px dashed #cfe0d4;border-radius:16px;background:var(--green-xl);
+    min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:24px;cursor:pointer;transition:.18s;position:relative;overflow:hidden;
+  }
+  .drop:hover{border-color:var(--green);background:#fff}
+  .drop.over{border-color:var(--green);background:var(--green-l);transform:scale(1.005)}
+  .drop img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff}
+  .drop .ph{display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
+  .drop .ph .ico{font-size:46px}
+  .drop .ph .t{font-weight:600;color:var(--ink-2);font-size:15px}
+  .drop .ph .s{color:var(--ink-3);font-size:12.5px;line-height:1.7}
+  .drop.hide-ph .ph{display:none}
+
+  .btns{display:flex;gap:10px;margin-top:14px}
+  .btn{
+    flex:1;height:46px;border-radius:12px;border:0;font-size:14.5px;font-weight:600;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:7px;transition:.15s;
+  }
+  .btn-primary{background:var(--green);color:#fff;box-shadow:0 4px 14px rgba(46,158,91,.3)}
+  .btn-primary:hover{background:var(--green-d)}
+  .btn-primary[disabled]{background:#bfd8c8;box-shadow:none;cursor:not-allowed}
+  .btn-ghost{background:var(--green-l);color:var(--green)}
+  .btn-ghost:hover{background:#dcefe2}
+  .cam-only{display:none}
+  @media (hover:none) and (pointer:coarse){ .cam-only{display:inline-flex} }
+
+  /* 统计 */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+  @media (max-width:480px){ .stats{grid-template-columns:repeat(2,1fr)} }
+  .stat{background:var(--green-xl);border-radius:14px;padding:13px 10px;text-align:center}
+  .stat .v{font-size:23px;font-weight:700;color:var(--green);line-height:1.15}
+  .stat .l{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+
+  .res-img{width:100%;border-radius:14px;border:1px solid var(--line);background:#f7f9f7;display:block}
+  .res-empty{color:var(--ink-3);font-size:13px;text-align:center;padding:34px 0}
+
+  .bar-row{display:flex;align-items:center;gap:10px;margin:9px 0}
+  .bar-row .tag{width:10px;height:10px;border-radius:3px;flex:none}
+  .bar-row .nm{flex:1;font-size:13px;font-weight:500}
+  .bar-row .ct{font-size:12px;color:var(--ink-3)}
+  .track{height:7px;background:#eef1ee;border-radius:5px;overflow:hidden;flex:0 0 38%}
+  .track .fill{height:100%;border-radius:5px;transition:width .4s}
+
+  .det{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid #f1f4f1}
+  .det:last-child{border-bottom:0}
+  .det .b{width:4px;align-self:stretch;min-height:30px;border-radius:3px;flex:none}
+  .det .main{flex:1;min-width:0}
+  .det .ln{display:flex;align-items:baseline;gap:8px}
+  .det .nm{font-size:13.5px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .det .cf{color:var(--green);font-weight:700;font-size:13px}
+  .det .bbox{font-size:11px;color:var(--ink-3);margin-top:2px}
+  .det .idx{font-size:12px;color:var(--ink-3)}
+
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:3px 9px;border-radius:999px;background:var(--green-l);color:var(--green);margin-left:8px}
+  .pill.mock{background:var(--amber-l);color:#8a6414}
+
+  .tip{background:var(--amber-l);border:1px solid var(--amber-b);color:#8a6414;font-size:12.5px;
+       padding:11px 13px;border-radius:12px;margin-bottom:18px;line-height:1.65;display:none}
+  .tip.show{display:block}
+
+  .section{margin-top:18px}
+  .none{background:var(--green-xl);border-radius:12px;padding:13px;font-size:13px;color:var(--ink-2);text-align:center}
+
+  /* 加载遮罩 */
+  .mask{position:fixed;inset:0;background:rgba(20,30,25,.4);display:none;align-items:center;justify-content:center;z-index:50}
+  .mask.show{display:flex}
+  .load{background:#fff;border-radius:16px;padding:28px 38px;display:flex;flex-direction:column;align-items:center;gap:14px;font-size:13.5px;color:var(--ink-2)}
+  .spin{width:36px;height:36px;border:4px solid #e6eae7;border-top-color:var(--green);border-radius:50%;animation:r .9s linear infinite}
+  @keyframes r{to{transform:rotate(360deg)}}
+
+  footer{text-align:center;color:var(--ink-3);font-size:12px;margin-top:34px;line-height:1.7}
+  footer code{background:#eef1ee;padding:1px 6px;border-radius:5px;color:var(--ink-2)}
+  input[type=file]{display:none}
+  .toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(20px);background:#1b231f;color:#fff;
+    padding:11px 18px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:60;max-width:88vw}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="brand">
+    <div class="logo">🍎</div>
+    <div>
+      <h1>苹果检测识别</h1>
+      <p>YOLOv5 实时视觉 · 上传图片即刻识别水果与数量</p>
+    </div>
+  </header>
+
+  <div class="status" id="status">
+    <i class="dot"></i><span id="statusText">正在连接服务…</span>
+    <button class="retry" onclick="health()">刷新</button>
+  </div>
+
+  <div class="tip" id="mockTip">
+    当前服务未加载专用训练权重，下方为 YOLOv5 通用模型的真实推理结果（可识别苹果、人、瓶子等 80 类）。放入你的 <code>best.pt</code> 重启即为专属模型。
+  </div>
+
+  <div class="grid">
+    <!-- 左：输入 -->
+    <div class="card">
+      <h2><span class="ic">📷</span>上传图片<span class="muted" id="imgMeta"></span></h2>
+      <div class="drop" id="drop" onclick="pick()">
+        <img id="srcImg" style="display:none" alt="原图" />
+        <div class="ph">
+          <span class="ico">🍏</span>
+          <span class="t">点击 / 拖拽图片到这里</span>
+          <span class="s">支持 JPG · PNG · WEBP · BMP<br>手机可点击下方「拍照」直接识别</span>
+        </div>
+      </div>
+      <div class="btns">
+        <button class="btn btn-ghost cam-only" onclick="capture()">📸 拍照</button>
+        <button class="btn btn-ghost" onclick="pick()">选择图片</button>
+        <button class="btn btn-ghost" onclick="reset()">重置</button>
+      </div>
+      <div class="btns">
+        <button class="btn btn-primary" id="detectBtn" disabled onclick="run()">开始检测</button>
+      </div>
+    </div>
+
+    <!-- 右：结果 -->
+    <div class="card">
+      <h2><span class="ic">🔍</span>检测结果<span id="modePill"></span></h2>
+
+      <div id="beforeBlock">
+        <div class="res-empty">尚未检测。上传一张苹果照片，点击「开始检测」查看识别结果。</div>
+      </div>
+
+      <div id="afterBlock" style="display:none">
+        <div class="stats">
+          <div class="stat"><div class="v" id="s1">0</div><div class="l">检测数量</div></div>
+          <div class="stat"><div class="v" id="s2">--</div><div class="l">平均置信度</div></div>
+          <div class="stat"><div class="v" id="s3">0</div><div class="l">推理耗时(ms)</div></div>
+          <div class="stat"><div class="v" id="s4">0</div><div class="l">最高置信度</div></div>
+        </div>
+
+        <img class="res-img" id="resImg" alt="标注图" style="display:none" />
+
+        <div class="section" id="distSec" style="display:none">
+          <h2 style="font-size:14px"><span class="ic">📊</span>类别分布</h2>
+          <div id="dist"></div>
+        </div>
+
+        <div class="section" id="detSec" style="display:none">
+          <h2 style="font-size:14px"><span class="ic">📋</span>检测明细<span class="muted" id="detCount"></span></h2>
+          <div id="dets"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    苹果检测识别 · 由 <code>FastAPI</code> + <code>YOLOv5</code> 提供推理 · 图片仅在本地/你的服务器处理，不上传第三方<br>
+    同一套后端可同时驱动网页版与微信小程序
+  </footer>
+</div>
+
+<input type="file" id="file" accept="image/*" />
+<input type="file" id="cam" accept="image/*" capture="environment" />
+<div class="mask" id="mask"><div class="load"><div class="spin"></div>正在识别…</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// 后端地址配置：
+//   - 同源部署（本机 /demo、或后端与网站同一域名如云托管）→ 留空 ""
+//   - 静态托管到别的域名（如 52byte.com）时 → 填后端 HTTPS 域名，例如
+//       const API_BASE = "https://apple-xxxx.run.tcloudbase.com"
+//     注意：后端需开启 CORS（本项目已默认允许所有来源）
+const API_BASE = ""
+
+const PALETTE = ['#e74c3c','#27ae60','#2980b9','#f39c12','#8e44ad','#1abc9c','#d35400','#34495e','#c0392b','#16a085']
+let classes = [], file = null
+
+function color(label){ const i = classes.indexOf(label); return PALETTE[(i<0?0:i)%PALETTE.length] }
+function $(id){ return document.getElementById(id) }
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2600) }
+
+function health(){
+  const el=$('status'); el.className='status'; $('statusText').textContent='正在连接服务…'
+  fetch(API_BASE + '/api/health')
+    .then(r=>r.json())
+    .then(d=>{
+      classes=(d.classes&&d.classes.length)?d.classes:['apple']
+      const map={real:'模型已加载 · 真实推理',torchhub:'模型已加载 · 推理',mock:'通用模型推理（未加载专用权重）'}
+      el.className='status '+(d.mode==='mock'?'warn':'ok')
+      $('statusText').textContent=map[d.mode]||'服务已连接'
+      $('mockTip').classList.toggle('show', d.mode==='mock')
+    })
+    .catch(()=>{ el.className='status error'; $('statusText').textContent='服务未连接，请确认后端已启动' })
+}
+
+function pick(){ $('file').click() }
+function capture(){ $('cam').click() }
+
+function onFile(f){
+  if(!f) return
+  if(!f.type.startsWith('image/')){ toast('请选择图片文件'); return }
+  file=f; const url=URL.createObjectURL(f)
+  const img=$('srcImg'); img.src=url; img.style.display='block'
+  $('drop').classList.add('hide-ph')
+  $('imgMeta').textContent=''
+  $('detectBtn').disabled=false
+  // 重置结果区
+  $('beforeBlock').style.display='none'; $('afterBlock').style.display='none'
+}
+
+$('file').addEventListener('change',e=>onFile(e.target.files[0]))
+$('cam').addEventListener('change',e=>onFile(e.target.files[0]))
+
+// 拖拽
+const drop=$('drop')
+;['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over')}))
+;['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over')}))
+drop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) onFile(f) })
+
+function reset(){
+  file=null; $('file').value=''; $('cam').value=''
+  $('srcImg').style.display='none'; $('drop').classList.remove('hide-ph')
+  $('imgMeta').textContent=''; $('detectBtn').disabled=true
+  $('beforeBlock').style.display='block'; $('afterBlock').style.display='none'
+}
+
+function run(){
+  if(!file) return
+  const btn=$('detectBtn'); btn.disabled=true; btn.textContent='检测中…'
+  $('mask').classList.add('show')
+  const fd=new FormData(); fd.append('file',file); fd.append('inline','true')
+  fetch(API_BASE + '/api/detect',{method:'POST',body:fd})
+    .then(r=>{ if(!r.ok) throw new Error('检测失败（HTTP '+r.status+'）'); return r.json() })
+    .then(render)
+    .catch(err=>toast(err.message))
+    .finally(()=>{ btn.disabled=false; btn.textContent='开始检测'; $('mask').classList.remove('show') })
+}
+
+function render(d){
+  $('beforeBlock').style.display='none'; $('afterBlock').style.display='block'
+  const total=d.stats.count
+
+  // 标注图：优先 base64（规避云托管多实例 404），否则走相对 URL
+  const res=$('resImg')
+  if(d.annotated_base64){ res.src=d.annotated_base64 }
+  else { res.src=(API_BASE||location.origin)+d.annotated_url+'?t='+Date.now() }
+  res.style.display='block'
+
+  // 模式标签
+  const pill=$('modePill')
+  pill.innerHTML = d.is_mock ? '<span class="pill mock">模拟数据</span>' : '<span class="pill">真实推理</span>'
+
+  // 统计
+  $('s1').textContent=total
+  $('s2').textContent=total?(d.stats.avg_confidence*100).toFixed(1)+'%':'--'
+  $('s3').textContent=Math.round(d.stats.inference_ms)
+  $('s4').textContent=total?(d.stats.max_confidence).toFixed(2):'0'
+
+  // 分布
+  const dist=$('dist'); const dl=(d.stats.by_label||[])
+  dist.innerHTML=dl.map(i=>{
+    const pct=total?Math.round(i.count/total*100):0
+    return `<div class="bar-row"><i class="tag" style="background:${color(i.label)}"></i>
+      <span class="nm">${i.label}</span><span class="ct">${i.count} · ${pct}%</span>
+      <div class="track"><div class="fill" style="width:${pct}%;background:${color(i.label)}"></div></div></div>`
+  }).join('')
+  $('distSec').style.display=dl.length?'block':'none'
+  if(!total){ $('distSec').style.display='none' }
+
+  // 明细
+  const dets=$('dets'); const ds=(d.detections||[])
+  if(!total){
+    dets.innerHTML='<div class="none">未检测到目标，可尝试更清晰的图片或调低阈值</div>'
+  } else {
+    dets.innerHTML=ds.map((x,i)=>`<div class="det"><i class="b" style="background:${color(x.label)}"></i>
+      <div class="main"><div class="ln"><span class="nm">${x.label}</span><span class="cf">${(x.confidence*100).toFixed(1)}%</span></div>
+      <div class="bbox">bbox: [${x.bbox.map(v=>Math.round(v)).join(', ')}]</div></div>
+      <span class="idx">#${i+1}</span></div>`).join('')
+  }
+  $('detCount').textContent='共 '+ds.length+' 条'
+  $('detSec').style.display='block'
+}
+
+health()
+</script>
+</body>
+</html>
