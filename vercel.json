@@ -1,6 +1,4 @@
 {
-  "installCommand": "echo 'pure static site, skip dependency install'",
-  "buildCommand": "rm -rf server scripts && echo 'pure static site, skip build'",
   "outputDirectory": "frontend-only",
   "headers": [
     {
