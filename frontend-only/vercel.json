@@ -1,0 +1,16 @@
+{
+  "headers": [
+    {
+      "source": "/(.*)\\.wasm$",
+      "headers": [{ "key": "Content-Type", "value": "application/wasm" }]
+    },
+    {
+      "source": "/(.*)\\.mjs$",
+      "headers": [{ "key": "Content-Type", "value": "text/javascript" }]
+    },
+    {
+      "source": "/(.*)\\.onnx$",
+      "headers": [{ "key": "Content-Type", "value": "application/octet-stream" }]
+    }
+  ]
+}

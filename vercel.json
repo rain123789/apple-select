@@ -1,4 +1,6 @@
 {
+  "installCommand": "echo 'pure static site, skip dependency install'",
+  "buildCommand": "echo 'pure static site, skip build'",
   "outputDirectory": "frontend-only",
   "headers": [
     {
