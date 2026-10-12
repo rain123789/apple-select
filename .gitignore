@@ -23,3 +23,14 @@ Thumbs.db
 # 部署产物（可由源文件重新生成，避免仓库冗余）
 frontend-only-完整部署包.zip
 miniprogram-纯前端web-view.zip
+
+# 本地运行日志
+serve.log
+frontend-only/serve-run.log
+
+# 训练产物（体积大，可凭 best.pt / 代码重新生成，不入库）
+model-export/pv_tmp/
+model-export/*.pt
+model-export/*.onnx
+model-export/*.log
+model-export/test_orchard.jpg

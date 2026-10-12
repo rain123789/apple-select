@@ -3,142 +3,213 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>苹果检测识别 · AI 视觉网站（纯前端）</title>
-<!-- 浏览器端推理引擎：ONNX Runtime Web（WASM），已自托管到同目录 onnxruntime-web/，不依赖任何外网 CDN（国内微信 web-view 也能稳定加载） -->
+<title>苹果品质分析 · 成熟度 / 尺寸 / 病害</title>
+<meta name="description" content="浏览器本地运行的苹果品质分析：成熟度分级、尺寸估算、COCO 苹果召回。图片不上传任何服务器。" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="./onnxruntime-web/ort.min.js"></script>
 <style>
   :root{
-    --green:#2e9e5b; --green-d:#24924f; --green-l:#eaf6ee; --green-xl:#f3faf5;
-    --red:#e74c3c; --amber:#f39c12; --amber-l:#fff7e6; --amber-b:#ffe2a8;
-    --ink:#1b231f; --ink-2:#5b655f; --ink-3:#98a29b;
-    --line:#e7ebe8; --card:#fff; --bg:#f4f7f4;
-    --radius:18px; --shadow:0 6px 24px rgba(31,36,33,.07);
+    --green:#16a35a; --green-2:#0f8a4d; --green-soft:#e8f6ee; --green-xl:#f2faf5;
+    --amber:#e0922a; --amber-soft:#fbf0dc; --amber-xl:#fdf6ea;
+    --red:#e0564e; --red-soft:#fbe9e7;
+    --ink:#0f1b15; --ink-2:#525e57; --ink-3:#8b968f;
+    --line:#e7ede9; --card:#ffffff; --bg:#f5f8f6;
+    --radius:22px; --radius-sm:14px;
+    --shadow-sm:0 2px 8px rgba(20,40,30,.05);
+    --shadow:0 16px 40px rgba(20,45,32,.09);
+    --shadow-lg:0 26px 60px rgba(20,45,32,.14);
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --font-d:"Sora",-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    --font-b:"Inter",-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%}
-  body{
-    background:linear-gradient(180deg,#f3faf5 0%,var(--bg) 220px);
-    color:var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
-    font-size:14px; line-height:1.55; min-height:100%;
-  }
-  .wrap{max-width:1040px;margin:0 auto;padding:28px 18px 64px}
+  html{-webkit-text-size-adjust:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font-b);font-size:15px;line-height:1.6;
+    min-height:100%;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden}
+  ::selection{background:rgba(22,163,90,.18)}
+  .wrap{max-width:1080px;margin:0 auto;padding:clamp(20px,5vw,44px) clamp(16px,4vw,32px) 72px}
 
-  header.brand{display:flex;align-items:center;gap:14px;margin-bottom:6px}
-  .logo{width:48px;height:48px;border-radius:14px;flex:none;background:linear-gradient(135deg,var(--green),var(--green-d));
-    display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 4px 14px rgba(46,158,91,.35)}
-  .brand h1{font-size:21px;font-weight:700;letter-spacing:.2px}
-  .brand p{color:var(--ink-3);font-size:13px;margin-top:1px}
-  .status{display:flex;align-items:center;gap:9px;margin:16px 0 22px;background:var(--card);border:1px solid var(--line);
-    border-radius:999px;padding:9px 16px;font-size:13px;width:fit-content;box-shadow:var(--shadow)}
-  .status .dot{width:9px;height:9px;border-radius:50%;background:#c7cdc9;flex:none;transition:background .3s}
-  .status.ok .dot{background:var(--green);box-shadow:0 0 0 4px var(--green-l)}
+  .nav{display:flex;align-items:center;justify-content:space-between;padding:6px 0 26px}
+  .brand{display:flex;align-items:center;gap:11px}
+  .brand .mark{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    font-size:21px;background:linear-gradient(140deg,var(--green),var(--green-2));
+    box-shadow:0 6px 16px rgba(22,163,90,.32), inset 0 1px 0 rgba(255,255,255,.3)}
+  .brand b{font-family:var(--font-d);font-weight:800;font-size:17px;letter-spacing:.2px}
+  .nav .tag{font-size:11.5px;color:var(--ink-3);border:1px solid var(--line);padding:6px 11px;border-radius:999px;
+    background:rgba(255,255,255,.6);backdrop-filter:blur(6px)}
+
+  .hero{position:relative;text-align:center;padding:clamp(34px,7vw,72px) 20px clamp(26px,5vw,46px);overflow:hidden;border-radius:28px;
+    background:linear-gradient(180deg,#ffffff 0%,var(--green-xl) 100%);border:1px solid var(--line);box-shadow:var(--shadow)}
+  .hero::before,.hero::after{content:"";position:absolute;border-radius:50%;filter:blur(14px);opacity:.5;pointer-events:none}
+  .hero::before{width:340px;height:340px;left:-90px;top:-120px;
+    background:radial-gradient(circle at 30% 30%,rgba(46,200,120,.35),rgba(46,200,120,0) 70%);
+    animation:float1 14s var(--ease) infinite alternate}
+  .hero::after{width:300px;height:300px;right:-80px;bottom:-130px;
+    background:radial-gradient(circle at 70% 70%,rgba(224,146,42,.22),rgba(224,146,42,0) 70%);
+    animation:float2 16s var(--ease) infinite alternate}
+  @keyframes float1{to{transform:translate(40px,30px) scale(1.08)}}
+  @keyframes float2{to{transform:translate(-36px,-24px) scale(1.1)}}
+  .eyebrow{position:relative;display:inline-flex;align-items:center;gap:8px;font-family:var(--font-d);
+    font-size:11.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--green-2);
+    background:var(--green-soft);padding:7px 14px;border-radius:999px;margin-bottom:20px}
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(22,163,90,.15)}
+  .hero h1{position:relative;font-family:var(--font-d);font-weight:800;letter-spacing:-.02em;
+    font-size:clamp(34px,7vw,58px);line-height:1.04;background:linear-gradient(180deg,#103a24,#1f7a45);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero .sub{position:relative;margin:16px auto 0;max-width:540px;color:var(--ink-2);
+    font-size:clamp(15px,2.2vw,18px);line-height:1.6}
+  .scroll-hint{position:relative;margin-top:24px;font-size:12px;color:var(--ink-3);display:inline-flex;flex-direction:column;
+    align-items:center;gap:6px}
+  .scroll-hint .arrow{width:22px;height:22px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;
+    justify-content:center;animation:bob 2s var(--ease) infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+
+  .status{display:flex;align-items:center;gap:10px;margin:22px auto 26px;width:fit-content;
+    background:var(--card);border:1px solid var(--line);border-radius:999px;padding:10px 16px 10px 14px;
+    font-size:13px;box-shadow:var(--shadow-sm);max-width:92vw}
+  .status .dot{width:9px;height:9px;border-radius:50%;background:#c2ccc6;flex:none;transition:background .35s,box-shadow .35s}
+  .status.ok .dot{background:var(--green);box-shadow:0 0 0 4px var(--green-soft)}
   .status.warn .dot{background:var(--amber)}
   .status.error .dot{background:var(--red)}
   .status span{flex:1}
-  .status .retry{color:var(--ink-3);cursor:pointer;font-size:12px;border:0;background:none;padding:4px 6px;border-radius:8px}
-  .status .retry:hover{background:var(--green-l);color:var(--green)}
+  .status .retry{color:var(--ink-3);cursor:pointer;font-size:12px;border:0;background:none;padding:5px 8px;border-radius:8px}
+  .status .retry:hover{background:var(--green-soft);color:var(--green-2)}
 
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
-  @media (max-width:840px){ .grid{grid-template-columns:1fr} }
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
-  .card h2{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:14px}
-  .card h2 .ic{font-size:17px}
-  .muted{color:var(--ink-3);font-size:12px;font-weight:400}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+  @media (max-width:840px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:clamp(18px,3vw,24px);
+    box-shadow:var(--shadow);transition:transform .4s var(--ease),box-shadow .4s var(--ease)}
+  .card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+  .card h2{font-family:var(--font-d);font-size:16px;font-weight:700;display:flex;align-items:center;gap:9px;margin-bottom:16px}
+  .card h2 .ic{font-size:18px}
+  .muted{color:var(--ink-3);font-size:12px;font-weight:500;margin-left:auto}
 
-  .drop{border:2px dashed #cfe0d4;border-radius:16px;background:var(--green-xl);min-height:240px;display:flex;
-    flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;cursor:pointer;transition:.18s;position:relative;overflow:hidden}
+  .drop{position:relative;border:1.5px dashed #c4ddcd;border-radius:var(--radius-sm);
+    background:linear-gradient(180deg,var(--green-xl),#e9f5ee);min-height:clamp(240px,38vw,300px);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    padding:26px;cursor:pointer;transition:border-color .25s,background .25s,transform .25s;overflow:hidden}
   .drop:hover{border-color:var(--green);background:#fff}
-  .drop.over{border-color:var(--green);background:var(--green-l);transform:scale(1.005)}
-  .drop img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff}
-  .drop .ph{display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
-  .drop .ph .ico{font-size:46px}
-  .drop .ph .t{font-weight:600;color:var(--ink-2);font-size:15px}
+  .drop.over{border-color:var(--green);background:var(--green-soft);transform:scale(1.006)}
+  .drop img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;opacity:0;transition:opacity .4s var(--ease);z-index:2}
+  .drop.has-img img{opacity:1}
+  .drop .ph{display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;transition:opacity .3s}
+  .drop.has-img .ph{opacity:0}
+  .drop .ph .ico{font-size:48px;filter:drop-shadow(0 8px 14px rgba(22,163,90,.25));animation:bob 3.4s var(--ease) infinite}
+  .drop .ph .t{font-family:var(--font-d);font-weight:700;color:var(--ink);font-size:16px}
   .drop .ph .s{color:var(--ink-3);font-size:12.5px;line-height:1.7}
-  .drop.hide-ph .ph{display:none}
+  .vf{position:absolute;width:22px;height:22px;border:2px solid var(--green);opacity:0;transition:opacity .3s,transform .3s;z-index:3;pointer-events:none}
+  .vf.tl{top:12px;left:12px;border-right:0;border-bottom:0;border-top-left-radius:8px}
+  .vf.tr{top:12px;right:12px;border-left:0;border-bottom:0;border-top-right-radius:8px}
+  .vf.bl{bottom:12px;left:12px;border-right:0;border-top:0;border-bottom-left-radius:8px}
+  .vf.br{bottom:12px;right:12px;border-left:0;border-top:0;border-bottom-right-radius:8px}
+  .drop:hover .vf,.drop.over .vf{opacity:.85}
+  .drop.over .vf{transform:scale(1.12)}
 
-  .btns{display:flex;gap:10px;margin-top:14px}
-  .btn{flex:1;height:46px;border-radius:12px;border:0;font-size:14.5px;font-weight:600;cursor:pointer;display:flex;
-    align-items:center;justify-content:center;gap:7px;transition:.15s}
-  .btn-primary{background:var(--green);color:#fff;box-shadow:0 4px 14px rgba(46,158,91,.3)}
-  .btn-primary:hover{background:var(--green-d)}
-  .btn-primary[disabled]{background:#bfd8c8;box-shadow:none;cursor:not-allowed}
-  .btn-ghost{background:var(--green-l);color:var(--green)}
-  .btn-ghost:hover{background:#dcefe2}
+  .btns{display:flex;gap:10px;margin-top:16px}
+  .btn{flex:1;height:48px;border-radius:13px;border:0;font-family:var(--font-d);font-size:14.5px;font-weight:600;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:transform .12s var(--ease),filter .2s,background .2s,box-shadow .2s}
+  .btn:active{transform:scale(.97)}
+  .btn-primary{background:linear-gradient(135deg,var(--green),var(--green-2));color:#fff;box-shadow:0 8px 20px rgba(22,163,90,.32)}
+  .btn-primary:hover{filter:brightness(1.06);box-shadow:0 10px 26px rgba(22,163,90,.4)}
+  .btn-primary[disabled]{background:#c2d8cb;box-shadow:none;cursor:not-allowed;color:#fff}
+  .btn-ghost{background:var(--green-soft);color:var(--green-2)}
+  .btn-ghost:hover{background:#d8eee0}
   .cam-only{display:none}
-  @media (hover:none) and (pointer:coarse){ .cam-only{display:inline-flex} }
+  @media (hover:none) and (pointer:coarse){.cam-only{display:inline-flex}}
 
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
-  @media (max-width:480px){ .stats{grid-template-columns:repeat(2,1fr)} }
-  .stat{background:var(--green-xl);border-radius:14px;padding:13px 10px;text-align:center}
-  .stat .v{font-size:23px;font-weight:700;color:var(--green);line-height:1.15}
-  .stat .l{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+  @media (max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:linear-gradient(180deg,#fff,var(--green-xl));border:1px solid var(--line);border-radius:var(--radius-sm);
+    padding:14px 10px;text-align:center;transition:transform .3s var(--ease)}
+  .stat:hover{transform:translateY(-2px)}
+  .stat .ic{font-size:16px}
+  .stat .v{font-family:var(--font-d);font-size:26px;font-weight:800;color:var(--green-2);line-height:1.1;margin-top:3px;font-variant-numeric:tabular-nums}
+  .stat .l{font-size:11px;color:var(--ink-3);margin-top:3px;letter-spacing:.02em}
 
-  .res-img{width:100%;border-radius:14px;border:1px solid var(--line);background:#f7f9f7;display:block}
-  .res-empty{color:var(--ink-3);font-size:13px;text-align:center;padding:34px 0}
+  .canvas-wrap{position:relative;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--line);
+    background:#f7f9f7;box-shadow:var(--shadow-sm)}
+  .res-img{width:100%;display:block}
+  .scan{position:absolute;left:0;right:0;top:0;height:2px;pointer-events:none;opacity:0;
+    background:linear-gradient(90deg,transparent,rgba(22,163,90,.9),transparent);
+    box-shadow:0 0 14px 2px rgba(22,163,90,.5)}
+  .canvas-wrap.scanning .scan{opacity:1;animation:scan 1.8s var(--ease) 2}
+  @keyframes scan{0%{top:2%}100%{top:98%}}
 
-  .bar-row{display:flex;align-items:center;gap:10px;margin:9px 0}
-  .bar-row .tag{width:10px;height:10px;border-radius:3px;flex:none}
-  .bar-row .nm{flex:1;font-size:13px;font-weight:500}
-  .bar-row .ct{font-size:12px;color:var(--ink-3)}
-  .track{height:7px;background:#eef1ee;border-radius:5px;overflow:hidden;flex:0 0 38%}
-  .track .fill{height:100%;border-radius:5px;transition:width .4s}
+  .res-empty{color:var(--ink-3);font-size:13.5px;text-align:center;padding:38px 0}
 
-  .det{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid #f1f4f1}
-  .det:last-child{border-bottom:0}
-  .det .b{width:4px;align-self:stretch;min-height:30px;border-radius:3px;flex:none}
-  .det .main{flex:1;min-width:0}
-  .det .ln{display:flex;align-items:baseline;gap:8px}
-  .det .nm{font-size:13.5px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .det .cf{color:var(--green);font-weight:700;font-size:13px}
-  .det .bbox{font-size:11px;color:var(--ink-3);margin-top:2px}
-  .det .idx{font-size:12px;color:var(--ink-3)}
+  /* 苹果明细 */
+  .apple{display:flex;align-items:center;gap:12px;padding:12px 2px;border-bottom:1px solid #f1f4f1;
+    opacity:0;transform:translateY(8px)}
+  .apple.show{opacity:1;transform:none;transition:opacity .4s var(--ease),transform .4s var(--ease)}
+  .apple:last-child{border-bottom:0}
+  .apple .b{width:4px;align-self:stretch;min-height:34px;border-radius:3px;flex:none}
+  .apple .main{flex:1;min-width:0}
+  .apple .ln{display:flex;align-items:baseline;gap:8px}
+  .apple .nm{font-size:13.5px;font-weight:700;flex:1}
+  .apple .cf{color:var(--green-2);font-weight:800;font-size:13px;font-variant-numeric:tabular-nums}
+  .apple .meta{font-size:11px;color:var(--ink-3);margin-top:2px;font-variant-numeric:tabular-nums}
+  .apple .idx{font-size:12px;color:var(--ink-3)}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 9px;border-radius:999px;font-weight:600}
+  .pill.ripe{background:var(--green-soft);color:var(--green-2)}
+  .pill.unripe{background:var(--amber-soft);color:#b9771f}
+  .pill.rotten{background:var(--red-soft);color:#c23b32}
+  .pill.other{background:#eef2f0;color:var(--ink-3)}
 
-  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:3px 9px;border-radius:999px;background:var(--green-l);color:var(--green);margin-left:8px}
-  .tip{background:var(--amber-l);border:1px solid var(--amber-b);color:#8a6414;font-size:12.5px;padding:11px 13px;
-    border-radius:12px;margin-bottom:18px;line-height:1.65;display:none}
-  .tip.show{display:block}
-  .tip code{background:#fff;border:1px solid var(--amber-b);padding:1px 6px;border-radius:5px}
-  .section{margin-top:18px}
-  .none{background:var(--green-xl);border-radius:12px;padding:13px;font-size:13px;color:var(--ink-2);text-align:center}
-  .mask{position:fixed;inset:0;background:rgba(20,30,25,.4);display:none;align-items:center;justify-content:center;z-index:50}
+  .section{margin-top:20px}
+  .none{background:var(--green-xl);border-radius:var(--radius-sm);padding:14px;font-size:13px;color:var(--ink-2);text-align:center}
+  .mask{position:fixed;inset:0;background:rgba(15,25,20,.42);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:50}
   .mask.show{display:flex}
-  .load{background:#fff;border-radius:16px;padding:28px 38px;display:flex;flex-direction:column;align-items:center;gap:14px;font-size:13.5px;color:var(--ink-2);max-width:86vw}
-  .spin{width:36px;height:36px;border:4px solid #e6eae7;border-top-color:var(--green);border-radius:50%;animation:r .9s linear infinite}
+  .load{background:#fff;border-radius:18px;padding:30px 42px;display:flex;flex-direction:column;align-items:center;gap:16px;font-size:13.5px;color:var(--ink-2);box-shadow:var(--shadow-lg);max-width:86vw}
+  .spin{width:38px;height:38px;border:4px solid #e7efe9;border-top-color:var(--green);border-radius:50%;animation:r .9s linear infinite}
   @keyframes r{to{transform:rotate(360deg)}}
-  footer{text-align:center;color:var(--ink-3);font-size:12px;margin-top:34px;line-height:1.7}
-  footer code{background:#eef1ee;padding:1px 6px;border-radius:5px;color:var(--ink-2)}
+  footer{text-align:center;color:var(--ink-3);font-size:12px;margin-top:40px;line-height:1.7;letter-spacing:.01em}
+  footer .sep{opacity:.4;margin:0 6px}
   input[type=file]{display:none}
-  .toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(20px);background:#1b231f;color:#fff;
-    padding:11px 18px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:60;max-width:88vw}
+  .toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(20px);background:#0f1b15;color:#fff;
+    padding:12px 18px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;transition:.25s var(--ease);z-index:60;max-width:88vw;
+    box-shadow:0 12px 30px rgba(0,0,0,.25)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .reveal{opacity:0;transform:translateY(16px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
+  .reveal.in{opacity:1;transform:none}
+  .hero .reveal{transition-delay:.05s}
+  .grid .reveal:nth-child(1){transition-delay:.12s}
+  .grid .reveal:nth-child(2){transition-delay:.2s}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important;transition:none !important}
+    .reveal{opacity:1;transform:none}
+    .apple{opacity:1;transform:none}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header class="brand">
-    <div class="logo">🍎</div>
-    <div>
-      <h1>苹果检测识别</h1>
-      <p>YOLOv5 实时视觉 · 全部在浏览器本地推理，图片不上传任何服务器</p>
-    </div>
-  </header>
+  <nav class="nav reveal">
+    <div class="brand"><div class="mark">🍎</div><b>苹果品质分析</b></div>
+    <div class="tag">成熟度 · 尺寸 · 本地推理</div>
+  </nav>
 
-  <div class="status" id="status">
+  <section class="hero reveal">
+    <span class="eyebrow"><span class="dot"></span>AI QUALITY SCAN · ON-DEVICE</span>
+    <h1>苹果品质分析</h1>
+    <p class="sub">上传一张苹果照片，AI 在浏览器里分析成熟度分级、估算果实尺寸——图片不会离开你的设备。</p>
+    <div class="scroll-hint"><span>开始体验</span><span class="arrow">↓</span></div>
+  </section>
+
+  <div class="status reveal" id="status">
     <i class="dot"></i><span id="statusText">正在加载模型…</span>
     <button class="retry" id="retryBtn" style="display:none" onclick="location.reload()">重试</button>
   </div>
 
-  <div class="tip" id="mockTip">
-    当前为 COCO 预训练 YOLOv5（官方权重，含 apple 第 47 类）：可识别苹果、人、瓶子等 80 类。
-    想只识别苹果，请用你自己的 <code>best.pt</code> 重新导出 ONNX 替换本地模型文件。
-  </div>
-
   <div class="grid">
-    <div class="card">
+    <div class="card reveal">
       <h2><span class="ic">📷</span>上传图片<span class="muted" id="imgMeta"></span></h2>
       <div class="drop" id="drop" onclick="pick()">
-        <img id="srcImg" style="display:none" alt="原图" />
+        <span class="vf tl"></span><span class="vf tr"></span><span class="vf bl"></span><span class="vf br"></span>
+        <img id="srcImg" alt="原图" />
         <div class="ph">
           <span class="ico">🍏</span>
           <span class="t">点击 / 拖拽图片到这里</span>
@@ -151,109 +222,84 @@
         <button class="btn btn-ghost" onclick="reset()">重置</button>
       </div>
       <div class="btns">
-        <button class="btn btn-primary" id="detectBtn" disabled onclick="run()">开始检测</button>
+        <button class="btn btn-primary" id="detectBtn" disabled onclick="run()">开始分析</button>
       </div>
     </div>
 
-    <div class="card">
-      <h2><span class="ic">🔍</span>检测结果<span id="modePill"></span></h2>
+    <div class="card reveal">
+      <h2><span class="ic">🔍</span>分析结果<span id="modePill"></span></h2>
       <div id="beforeBlock">
-        <div class="res-empty">模型加载完成后，上传一张苹果照片，点击「开始检测」查看识别结果。</div>
+        <div class="res-empty">模型加载完成后，上传一张苹果照片，点击「开始分析」查看成熟度、尺寸与病害参考。</div>
       </div>
       <div id="afterBlock" style="display:none">
-        <div class="stats">
-          <div class="stat"><div class="v" id="s1">0</div><div class="l">检测数量</div></div>
-          <div class="stat"><div class="v" id="s2">--</div><div class="l">平均置信度</div></div>
-          <div class="stat"><div class="v" id="s3">0</div><div class="l">推理耗时(ms)</div></div>
-          <div class="stat"><div class="v" id="s4">0</div><div class="l">最高置信度</div></div>
+        <div class="stats" id="statsGrid">
+          <div class="stat"><div class="ic">🍎</div><div class="v" id="s1">0</div><div class="l">苹果数量</div></div>
+          <div class="stat"><div class="ic">🌿</div><div class="v" id="s2">0</div><div class="l">成熟占比</div></div>
+          <div class="stat"><div class="ic">⚡</div><div class="v" id="s3">0</div><div class="l">耗时ms</div></div>
+          <div class="stat"><div class="ic">🥇</div><div class="v" id="s4">0</div><div class="l">最高置信度</div></div>
         </div>
-        <canvas class="res-img" id="resCanvas" style="display:none"></canvas>
-        <div class="section" id="distSec" style="display:none">
-          <h2 style="font-size:14px"><span class="ic">📊</span>类别分布</h2>
-          <div id="dist"></div>
+        <div class="canvas-wrap" id="canvasWrap">
+          <canvas class="res-img" id="resCanvas"></canvas>
+          <div class="scan"></div>
         </div>
-        <div class="section" id="detSec" style="display:none">
-          <h2 style="font-size:14px"><span class="ic">📋</span>检测明细<span class="muted" id="detCount"></span></h2>
-          <div id="dets"></div>
+
+        <div class="section" id="appleSec" style="display:none">
+          <h2 style="font-size:14px;font-family:var(--font-d)"><span class="ic">🍎</span>成熟度明细<span class="muted" id="appleCount"></span></h2>
+          <div id="apples"></div>
         </div>
       </div>
     </div>
   </div>
 
   <footer>
-    苹果检测识别 · 纯前端实现（ONNX Runtime Web + YOLOv5）· 推理在你的浏览器本地完成，图片不会离开设备<br>
-    后端不是必需的——这就是一个静态网页，可直接托管到任意静态空间
+    苹果品质分析<span class="sep">·</span>Powered by YOLOv5 + ONNX Runtime Web<span class="sep">·</span>纯前端静态页
   </footer>
 </div>
 
 <input type="file" id="file" accept="image/*" />
 <input type="file" id="cam" accept="image/*" capture="environment" />
-<div class="mask" id="mask"><div class="load"><div class="spin"></div><span id="maskText">正在识别…</span></div></div>
+<div class="mask" id="mask"><div class="load"><div class="spin"></div><span id="maskText">正在分析…</span></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
 /* ======================================================================
- * ⚙️ 模型配置（上线前可改这一处）
- * --------------------------------------------------------------------
- * 默认加载与本页同目录的 yolov5s.onnx（COCO 预训练，含 apple 第 47 类）。
- * 若你只能往 52byte.com 上传一个 index.html，把 MODEL_URL 改成官方 CDN：
- *   const MODEL_URL = "https://github.com/ultralytics/yolov5/releases/download/v7.0/yolov5s.onnx"
- * 页面会自动先尝试本地 ./yolov5s.onnx，失败再回退到上面的官方地址。
+ * 模型元数据（导出时已确认；成熟度类别名由 model-meta 回填）
  * ==================================================================== */
-const MODEL_URL = "./yolov5s.onnx"
-const FALLBACK_MODEL_URL = "https://github.com/ultralytics/yolov5/releases/download/v7.0/yolov5s.onnx"
+const MODEL_META = {
+  ripeness: {
+    url: "./apple-ripeness.onnx",
+    size: 640,
+    names: ["Ripe Apples","Ripe Bananas","Ripe Blueberries","Unripe Apples","Unripe Bananas","Unripe Blueberries"],
+    conf: 0.15, iou: 0.45
+  },
+  coco: {
+    url: "./yolov5s.onnx",
+    size: 640,
+    conf: 0.20, iou: 0.45
+  }
+}
 
-const SIZE = 640
-const CONF = 0.20          // 置信度阈值
-const IOU = 0.45           // NMS IoU 阈值
+/* COCO 80 类（仅用于取回 apple=47 的召回兜底） */
+const COCO_NAMES = ["person","bicycle","car","motorcycle","airplane","bus","train","truck","boat","traffic light","fire hydrant","stop sign","parking meter","bench","bird","cat","dog","horse","sheep","cow","elephant","bear","zebra","giraffe","backpack","umbrella","handbag","tie","suitcase","frisbee","skis","snowboard","sports ball","kite","baseball bat","baseball glove","skateboard","surfboard","tennis racket","bottle","wine glass","cup","fork","knife","spoon","bowl","banana","apple","sandwich","orange","broccoli","carrot","hot dog","pizza","donut","cake","chair","couch","potted plant","bed","dining table","toilet","tv","laptop","mouse","remote","keyboard","cell phone","microwave","oven","toaster","sink","refrigerator","book","clock","vase","scissors","teddy bear","hair drier","toothbrush"]
+
 const PALETTE = ['#e74c3c','#27ae60','#2980b9','#f39c12','#8e44ad','#1abc9c','#d35400','#34495e','#c0392b','#16a085']
-
-// COCO 80 类（apple = 索引 47）
-const COCO = ["person","bicycle","car","motorcycle","airplane","bus","train","truck","boat","traffic light",
-"fire hydrant","stop sign","parking meter","bench","bird","cat","dog","horse","sheep","cow",
-"elephant","bear","zebra","giraffe","backpack","umbrella","handbag","tie","suitcase","frisbee",
-"skis","snowboard","sports ball","kite","baseball bat","baseball glove","skateboard","surfboard","tennis racket","bottle",
-"wine glass","cup","fork","knife","spoon","bowl","banana","apple","sandwich","orange",
-"broccoli","carrot","hot dog","pizza","donut","cake","chair","couch","potted plant","bed",
-"dining table","toilet","tv","laptop","mouse","remote","keyboard","cell phone","microwave","oven",
-"toaster","sink","refrigerator","book","clock","vase","scissors","teddy bear","hair drier","toothbrush"]
-
-let session = null, file = null, srcImage = null
+let ripSession=null, cocoSession=null, file=null, srcImage=null
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 function $(id){ return document.getElementById(id) }
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2800) }
-function color(label){ const i=COCO.indexOf(label); return PALETTE[(i<0?0:i)%PALETTE.length] }
-function setStatus(cls,text){ const el=$('status'); el.className='status '+(cls||''); $('statusText').textContent=text }
+function setStatus(cls,text){ const el=$('status'); el.className='status reveal in'+(cls?(' '+cls):''); $('statusText').textContent=text }
+function revealAll(){ document.querySelectorAll('.reveal').forEach(el=>el.classList.add('in')) }
+function countTo(el,to,fmt){ if(REDUCED){el.textContent=fmt(to);return} const dur=750,t0=performance.now();
+  function step(t){const p=Math.min(1,(t-t0)/dur);const e=1-Math.pow(1-p,3);el.textContent=fmt(to*e);if(p<1)requestAnimationFrame(step)}
+  requestAnimationFrame(step) }
 
-// 加载模型（浏览器本地；失败回退官方 CDN）
-async function loadModel(){
-  if(typeof ort==='undefined'){ setStatus('error','推理引擎(ort)加载失败，请检查网络'); $('retryBtn').style.display='inline'; return }
-  // 推理引擎(ort.min.js)与 wasm 文件同目录。用脚本自身所在目录的绝对 URL 作为
-  // wasmPaths，避免相对路径被引擎二次拼接成 onnxruntime-web/onnxruntime-web 重复目录
-  const _ortScript = document.querySelector('script[src*="ort.min.js"]')
-  ort.env.wasm.wasmPaths = _ortScript ? new URL('./', _ortScript.src).href : './'
-  // 微信 web-view 通常不提供 SharedArrayBuffer（缺 COOP/COEP 头），强制单线程最稳
-  ort.env.wasm.numThreads = 1
-  setStatus('', '正在加载模型…（约 28MB，首次稍慢）')
-  try {
-    session = await ort.InferenceSession.create(MODEL_URL, { executionProviders:['wasm'], graphOptimizationLevel:'all' })
-    onModelReady()
-  } catch (e1) {
-    if (MODEL_URL !== FALLBACK_MODEL_URL) {
-      try {
-        setStatus('', '本地模型缺失，正在加载官方 CDN 模型…')
-        session = await ort.InferenceSession.create(FALLBACK_MODEL_URL, { executionProviders:['wasm'], graphOptimizationLevel:'all' })
-        onModelReady()
-        return
-      } catch (e2) { /* 落到下方错误 */ }
-    }
-    console.error(e1); setStatus('error','模型加载失败：' + (e1.message||e1)); $('retryBtn').style.display='inline'
-  }
-}
-function onModelReady(){
-  setStatus('ok', '模型已加载 · 浏览器本地推理')
-  $('mockTip').classList.add('show')
-  if (file) $('detectBtn').disabled = false
+function colorFor(ripen){ return ripen==='ripe'?('#16a35a'):ripen==='unripe'?('#e0922a'):ripen==='rotten'?('#e0564e'):('#8b968f') }
+function parseFruit(label){
+  const L=String(label).toLowerCase()
+  let fruit = L.includes('apple')?'apple':L.includes('banana')?'banana':L.includes('blueberry')?'blueberry':'other'
+  let ripen = L.includes('rotten')?'rotten':L.includes('unripe')?'unripe':L.includes('ripe')?'ripe':'unknown'
+  return {fruit, ripen}
 }
 
 function pick(){ $('file').click() }
@@ -261,11 +307,9 @@ function capture(){ $('cam').click() }
 function onFile(f){
   if(!f) return
   if(!f.type.startsWith('image/')){ toast('请选择图片文件'); return }
-  file=f
-  const url=URL.createObjectURL(f)
-  const img=$('srcImg'); img.src=url; img.style.display='block'
-  $('drop').classList.add('hide-ph'); $('imgMeta').textContent=''
-  $('detectBtn').disabled = !session
+  file=f; const url=URL.createObjectURL(f)
+  const img=$('srcImg'); img.src=url; $('drop').classList.add('has-img'); $('imgMeta').textContent=''
+  $('detectBtn').disabled = !ripSession
   $('beforeBlock').style.display='none'; $('afterBlock').style.display='none'
   const im=new Image(); im.onload=()=>{ srcImage=im }; im.src=url
 }
@@ -275,137 +319,171 @@ const drop=$('drop')
 ;['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over')}))
 ;['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over')}))
 drop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) onFile(f) })
-
-function reset(){
-  file=null; srcImage=null; $('file').value=''; $('cam').value=''
-  $('srcImg').style.display='none'; $('drop').classList.remove('hide-ph')
-  $('imgMeta').textContent=''; $('detectBtn').disabled=true
-  $('beforeBlock').style.display='block'; $('afterBlock').style.display='none'
+function reset(){ file=null; srcImage=null; $('file').value=''; $('cam').value=''
+  $('srcImg').removeAttribute('src'); $('drop').classList.remove('has-img'); $('imgMeta').textContent=''; $('detectBtn').disabled=true
+  $('beforeBlock').style.display='block'; $('afterBlock').style.display='none' }
+async function loadModels(){
+  if(typeof ort==='undefined'){ setStatus('error','推理引擎(ort)加载失败，请检查网络'); $('retryBtn').style.display='inline'; return }
+  const _s=document.querySelector('script[src*="ort.min.js"]')
+  ort.env.wasm.wasmPaths = _s?new URL('./',_s.src).href:'./'
+  ort.env.wasm.numThreads = 1
+  setStatus('','正在加载模型…（成熟度 + COCO 苹果召回，约 79MB，首次稍慢）')
+  try {
+    ripSession = await ort.InferenceSession.create(MODEL_META.ripeness.url, {executionProviders:['wasm'], graphOptimizationLevel:'all'})
+  } catch(e){
+    console.error(e); setStatus('error','成熟度模型加载失败：'+(e.message||e)); $('retryBtn').style.display='inline'; return
+  }
+  try {
+    cocoSession = await ort.InferenceSession.create(MODEL_META.coco.url, {executionProviders:['wasm'], graphOptimizationLevel:'all'})
+  } catch(e){ console.warn('coco model load failed', e) }
+  onReady()
 }
+function onReady(){ setStatus('ok','模型已加载 · 浏览器本地推理'); if(file) $('detectBtn').disabled=false }
 
-// 预处理：letterbox 缩放到 640，归一化，RGB 排到 CHW
-function preprocess(img){
-  const w=img.naturalWidth, h=img.naturalHeight
-  const r=Math.min(SIZE/w, SIZE/h)
-  const nw=Math.round(w*r), nh=Math.round(h*r)
-  const c=document.createElement('canvas'); c.width=SIZE; c.height=SIZE
-  const ctx=c.getContext('2d')
-  ctx.fillStyle='#727272'; ctx.fillRect(0,0,SIZE,SIZE)
-  ctx.drawImage(img,(SIZE-nw)/2,(SIZE-nh)/2,nw,nh)
-  const d=ctx.getImageData(0,0,SIZE,SIZE).data
-  const f=new Float32Array(3*SIZE*SIZE)
-  for(let i=0;i<SIZE*SIZE;i++){ f[i]=d[i*4]/255; f[SIZE*SIZE+i]=d[i*4+1]/255; f[2*SIZE*SIZE+i]=d[i*4+2]/255 }
-  return { input:f, meta:{w,h,nw,nh,r} }
+/* 成熟度预处理：YOLOv5 letterbox + /255 */
+function preprocessRip(img){
+  const S=MODEL_META.ripeness.size, w=img.naturalWidth, h=img.naturalHeight
+  const r=Math.min(S/w,S/h), nw=Math.round(w*r), nh=Math.round(h*r)
+  const c=document.createElement('canvas'); c.width=S; c.height=S
+  const ctx=c.getContext('2d'); ctx.fillStyle='#727272'; ctx.fillRect(0,0,S,S)
+  ctx.drawImage(img,(S-nw)/2,(S-nh)/2,nw,nh)
+  const d=ctx.getImageData(0,0,S,S).data, f=new Float32Array(3*S*S)
+  for(let i=0;i<S*S;i++){ f[i]=d[i*4]/255; f[S*S+i]=d[i*4+1]/255; f[2*S*S+i]=d[i*4+2]/255 }
+  return {input:f, meta:{w,h,nw,nh,r,padX:(S-nw)/2, padY:(S-nh)/2}}
 }
-
-function iou(a,b){
-  const xx=Math.max(a[0],b[0]), yy=Math.max(a[1],b[1]), xx2=Math.min(a[2],b[2]), yy2=Math.min(a[3],b[3])
-  const iw=Math.max(0,xx2-xx), ih=Math.max(0,yy2-yy), inter=iw*ih
-  const A=(a[2]-a[0])*(a[3]-a[1])+(b[2]-b[0])*(b[3]-b[1])-inter
-  return inter/A
-}
+function iou(a,b){ const xx=Math.max(a[0],b[0]),yy=Math.max(a[1],b[1]),xx2=Math.min(a[2],b[2]),yy2=Math.min(a[3],b[3])
+  const iw=Math.max(0,xx2-xx),ih=Math.max(0,yy2-yy),inter=iw*ih
+  const A=(a[2]-a[0])*(a[3]-a[1])+(b[2]-b[0])*(b[3]-b[1])-inter; return inter/A }
 function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)) }
 
-// 解码 + NMS（与 Python 端 onnxruntime 验证一致）
-function decode(data, rows, meta){
-  const padX=(SIZE-meta.nw)/2, padY=(SIZE-meta.nh)/2
+/* 成熟度解码：自动识别 [1,rows,nc+5] 或 [1,nc+5,rows] 布局 */
+function decodeRip(data, dims, meta){
+  const A=dims[1], B=dims[2], NC=meta.names.length, stride=NC+5
+  let rows, transposed
+  if(A===stride){ transposed=true; rows=B } else { transposed=false; rows=A }
+  const padX=meta.padX, padY=meta.padY, r=meta.r, W=meta.w, H=meta.h
   const raw=[]
   for(let i=0;i<rows;i++){
-    const b=i*85
-    let maxc=0, maxv=-1
-    for(let c=0;c<80;c++){ const v=data[b+5+c]; if(v>maxv){maxv=v;maxc=c} }
-    const score=data[b+4]*maxv
-    if(score<CONF) continue
-    let x1=data[b]-data[b+2]/2, y1=data[b+1]-data[b+3]/2
-    let x2=data[b]+data[b+2]/2, y2=data[b+1]+data[b+3]/2
-    x1=(x1-padX)/meta.r; y1=(y1-padY)/meta.r; x2=(x2-padX)/meta.r; y2=(y2-padY)/meta.r
-    raw.push({ cls:maxc, label:COCO[maxc], conf:score,
-      bbox:[clamp(x1,0,meta.w),clamp(y1,0,meta.h),clamp(x2,0,meta.w),clamp(y2,0,meta.h)] })
+    let obj, cx,cy,bw,bh, off
+    if(transposed){ obj=data[4*rows+i]; cx=data[0*rows+i]; cy=data[1*rows+i]; bw=data[2*rows+i]; bh=data[3*rows+i]; off=5*rows }
+    else { const b=i*stride; obj=data[b+4]; cx=data[b]; cy=data[b+1]; bw=data[b+2]; bh=data[b+3]; off=i*stride+5 }
+    let maxv=-1, maxc=0
+    for(let c=0;c<NC;c++){ const v=transposed?data[(5+c)*rows+i]:data[off+c]; if(v>maxv){maxv=v;maxc=c} }
+    const score=obj*maxv
+    if(score<meta.conf) continue
+    let x1=cx-bw/2, y1=cy-bh/2, x2=cx+bw/2, y2=cy+bh/2
+    x1=(x1-padX)/r; y1=(y1-padY)/r; x2=(x2-padX)/r; y2=(y2-padY)/r
+    const label=meta.names[maxc]||String(maxc)
+    raw.push({cls:maxc,label,conf:score,bbox:[clamp(x1,0,W),clamp(y1,0,H),clamp(x2,0,W),clamp(y2,0,H)]})
   }
-  const byCls={}
-  raw.forEach(d=>{ (byCls[d.cls]=byCls[d.cls]||[]).push(d) })
+  const byCls={}; raw.forEach(d=>{(byCls[d.cls]=byCls[d.cls]||[]).push(d)})
   const out=[]
-  Object.keys(byCls).forEach(k=>{
-    let g=byCls[k].sort((a,b)=>b.conf-a.conf)
-    while(g.length){
-      const best=g.shift(); out.push(best)
-      g=g.filter(d=>iou(best.bbox,d.bbox)<=IOU)
-    }
-  })
+  Object.keys(byCls).forEach(k=>{ let g=byCls[k].sort((a,b)=>b.conf-a.conf)
+    while(g.length){ const best=g.shift(); out.push(best); g=g.filter(d=>iou(best.bbox,d.bbox)<=meta.iou) } })
   return out.sort((a,b)=>b.conf-a.conf)
 }
-
 async function run(){
-  if(!file || !session) return
-  const btn=$('detectBtn'); btn.disabled=true; btn.textContent='检测中…'
-  $('mask').classList.add('show')
+  if(!file || !srcImage) return
+  if(!ripSession){ toast('成熟度模型尚未加载，请稍候'); return }
+  const btn=$('detectBtn'); btn.disabled=true; btn.textContent='分析中…'; $('mask').classList.add('show')
   try {
-    const {input, meta}=preprocess(srcImage)
+    const pr=preprocessRip(srcImage)
+    const tensor=new ort.Tensor('float32', pr.input, [1,3,640,640])
     const t0=performance.now()
-    const res=await session.run({ images:new ort.Tensor('float32', input, [1,3,SIZE,SIZE]) })
+    const rr=await ripSession.run({ images:tensor })
+    const outName=rr['output']? 'output' : Object.keys(rr)[0]
+    let dets=decodeRip(rr[outName].data, rr[outName].dims, {
+      names:MODEL_META.ripeness.names, conf:MODEL_META.ripeness.conf, iou:MODEL_META.ripeness.iou,
+      padX:pr.meta.padX, padY:pr.meta.padY, r:pr.meta.r, w:pr.meta.w, h:pr.meta.h })
+    // 去重：同一苹果可能被成熟度模型同时判为「熟/生」两次，按 IoU 合并保留置信度最高者，避免重复计数
+    const _isApple=d=>parseFruit(d.label).fruit==='apple'
+    const _detA=dets.filter(_isApple).sort((a,b)=>b.conf-a.conf), _detO=dets.filter(d=>!_isApple(d)), _mA=[]
+    for(const d of _detA){ if(!_mA.some(m=>iou(m.bbox,d.bbox)>0.5)) _mA.push(d) }
+    dets=_detO.concat(_mA)
+    // COCO yolov5s 叠加：找回成熟度模型漏掉的苹果（灰色「未判定」）
+    if(cocoSession){
+      try{
+        const rc=await cocoSession.run({ images:tensor })
+        const on=rc['output']? 'output' : Object.keys(rc)[0]
+        const cd=decodeRip(rc[on].data, rc[on].dims, {
+          names:COCO_NAMES, conf:MODEL_META.coco.conf, iou:MODEL_META.coco.iou,
+          padX:pr.meta.padX, padY:pr.meta.padY, r:pr.meta.r, w:pr.meta.w, h:pr.meta.h })
+        const applesRip=dets.filter(d=>parseFruit(d.label).fruit==='apple')
+        const extra=cd.filter(d=>parseFruit(d.label).fruit==='apple')
+            .filter(c=>!applesRip.some(m=>iou(m.bbox,c.bbox)>0.45))
+        dets=dets.concat(extra.map(c=>({...c,label:'Apple'})))
+      }catch(e){ console.warn('coco infer failed', e) }
+    }
     const ms=performance.now()-t0
-    const out=res['output']
-    const dets=decode(out.data, out.dims[1], meta)
     render(dets, ms)
-  } catch(e){
-    console.error(e); toast('推理失败：'+(e.message||e))
-  } finally {
-    btn.disabled=false; btn.textContent='开始检测'; $('mask').classList.remove('show')
-  }
+  } catch(e){ console.error(e); toast('推理失败：'+(e.message||e)) }
+  finally { btn.disabled=false; btn.textContent='开始分析'; $('mask').classList.remove('show') }
 }
 
 function render(dets, ms){
   $('beforeBlock').style.display='none'; $('afterBlock').style.display='block'
-  const total=dets.length
-  // 标注图
-  const cv=$('resCanvas'); const w=srcImage.naturalWidth, h=srcImage.naturalHeight
-  cv.width=w; cv.height=h
-  const ctx=cv.getContext('2d')
-  ctx.drawImage(srcImage,0,0,w,h)
-  dets.forEach((d,i)=>{
-    const col=color(d.label)
-    ctx.strokeStyle=col; ctx.lineWidth=Math.max(2, Math.round(w/240))
+  const w=srcImage.naturalWidth, h=srcImage.naturalHeight
+  const cv=$('resCanvas'); cv.width=w; cv.height=h
+  const ctx=cv.getContext('2d'); ctx.drawImage(srcImage,0,0,w,h)
+
+  const apples=dets.filter(d=>parseFruit(d.label).fruit==='apple')
+  apples.forEach(d=>{
+    const {ripen}=parseFruit(d.label); const col=colorFor(ripen)
+    ctx.strokeStyle=col; ctx.lineWidth=Math.max(2,Math.round(w/240))
     ctx.strokeRect(d.bbox[0],d.bbox[1],d.bbox[2]-d.bbox[0],d.bbox[3]-d.bbox[1])
     const text=d.label+' '+(d.conf*100).toFixed(0)+'%'
     ctx.font='600 '+Math.max(13,Math.round(w/40))+'px sans-serif'
     const tw=ctx.measureText(text).width
-    ctx.fillStyle=col; ctx.fillRect(d.bbox[0], Math.max(0,d.bbox[1]-Math.round(w/32)), tw+10, Math.round(w/26))
-    ctx.fillStyle='#fff'; ctx.fillText(text, d.bbox[0]+5, Math.max(0,d.bbox[1]-Math.round(w/64)))
+    ctx.fillStyle=col; ctx.fillRect(d.bbox[0],Math.max(0,d.bbox[1]-Math.round(w/32)),tw+10,Math.round(w/26))
+    ctx.fillStyle='#fff'; ctx.fillText(text,d.bbox[0]+5,Math.max(0,d.bbox[1]-Math.round(w/64)))
   })
   cv.style.display='block'
 
-  const maxConf = total?Math.max(...dets.map(d=>d.conf)):0
-  const avg = total?dets.reduce((s,d)=>s+d.conf,0)/total:0
-  $('s1').textContent=total
-  $('s2').textContent=total?(avg*100).toFixed(1)+'%':'--'
-  $('s3').textContent=Math.round(ms)
-  $('s4').textContent=total?maxConf.toFixed(2):'0'
-  $('modePill').innerHTML='<span class="pill">本地推理</span>'
+  // 统计
+  const total=apples.length
+  const ripeN=apples.filter(d=>parseFruit(d.label).ripen==='ripe').length
+  const maxConf=total?Math.max(...apples.map(d=>d.conf)):0
+  const judged=apples.filter(d=>parseFruit(d.label).ripen!=='unknown')
+  countTo($('s1'), total, v=>String(Math.round(v)))
+  countTo($('s2'), judged.length?Math.round(ripeN/judged.length*100):0, v=>judged.length?(v)+'%':'--')
+  countTo($('s3'), Math.round(ms), v=>String(Math.round(v)))
+  countTo($('s4'), total?maxConf:0, v=>total?(v*100).toFixed(0)+'%':'0')
+  $('modePill').innerHTML='<span class="pill ripe">本地推理</span>'
 
-  const byLabel={}
-  dets.forEach(d=>{ byLabel[d.label]=(byLabel[d.label]||0)+1 })
-  const dist=$('dist'); const dl=Object.entries(byLabel).sort((a,b)=>b[1]-a[1])
-  dist.innerHTML=dl.map(([lab,ct])=>{
-    const pct=total?Math.round(ct/total*100):0
-    return `<div class="bar-row"><i class="tag" style="background:${color(lab)}"></i>
-      <span class="nm">${lab}</span><span class="ct">${ct} · ${pct}%</span>
-      <div class="track"><div class="fill" style="width:${pct}%;background:${color(lab)}"></div></div></div>`
-  }).join('')
-  $('distSec').style.display=dl.length?'block':'none'
+  const wrap=$('canvasWrap'); wrap.classList.remove('scanning'); clearTimeout(wrap._st)
+  if(!REDUCED && total){ void wrap.offsetWidth; wrap.classList.add('scanning'); wrap._st=setTimeout(()=>wrap.classList.remove('scanning'),3600) }
 
-  const detsEl=$('dets')
-  if(!total){ detsEl.innerHTML='<div class="none">未检测到目标，可尝试更清晰的图片或调低阈值</div>' }
+  // 成熟度明细
+  const applesEl=$('apples')
+  if(!total){ applesEl.innerHTML='<div class="none">未检测到苹果，可尝试更清晰的苹果照片</div>'; $('appleCount').textContent='' }
   else {
-    detsEl.innerHTML=dets.map((x,i)=>`<div class="det"><i class="b" style="background:${color(x.label)}"></i>
-      <div class="main"><div class="ln"><span class="nm">${x.label}</span><span class="cf">${(x.conf*100).toFixed(1)}%</span></div>
-      <div class="bbox">bbox: [${x.bbox.map(v=>Math.round(v)).join(', ')}]</div></div>
-      <span class="idx">#${i+1}</span></div>`).join('')
+    // 相对尺寸：以 bbox 面积占全图比例估算
+    const imgArea=w*h
+    applesEl.innerHTML=apples.map((x,i)=>{
+      const {ripen, fruit}=parseFruit(x.label)
+      const bw=x.bbox[2]-x.bbox[0], bh=x.bbox[3]-x.bbox[1]
+      const areaFrac=(bw*bh)/imgArea*100
+      const grade = areaFrac<3?'小':areaFrac<10?'中':'大'
+      const diamPx=Math.round(Math.sqrt(bw*bh))
+      const cls = ripen==='ripe'?'ripe':ripen==='unripe'?'unripe':ripen==='rotten'?'rotten':'other'
+      const labelTxt = ripen==='ripe'?'成熟':ripen==='unripe'?'未熟':ripen==='rotten'?'腐烂':'未判定'
+      return `<div class="apple"><i class="b" style="background:${colorFor(ripen)}"></i>
+        <div class="main"><div class="ln"><span class="nm">${x.label}</span>
+          <span class="cf">${(x.conf*100).toFixed(1)}%</span>
+          <span class="pill ${cls}">${labelTxt}</span></div>
+          <div class="meta">相对尺寸 ${grade} · 像素直径 ≈${diamPx}px · 占图 ${areaFrac.toFixed(1)}%</div></div>
+        <span class="idx">#${i+1}</span></div>`
+    }).join('')
+    const unk=apples.filter(x=>parseFruit(x.label).ripen==='unknown').length
+    $('appleCount').textContent='共 '+apples.length+' 个'+(unk?(' · '+unk+' 未判定'):'')
+    if(!REDUCED){ requestAnimationFrame(()=>{ applesEl.querySelectorAll('.apple').forEach((el,i)=>{ el.style.transitionDelay=(i*45)+'ms'; el.classList.add('show') }) }) }
+    else applesEl.querySelectorAll('.apple').forEach(el=>el.classList.add('show'))
   }
-  $('detCount').textContent='共 '+dets.length+' 条'
-  $('detSec').style.display='block'
+  $('appleSec').style.display='block'
 }
 
-loadModel()
+revealAll()
+loadModels()
 </script>
 </body>
 </html>
